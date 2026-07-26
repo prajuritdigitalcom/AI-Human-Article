@@ -40,7 +40,14 @@ export function getArticleHistory(): ArticleHistoryItem[] {
 
 export function saveArticleHistoryItem(item: ArticleHistoryItem): ArticleHistoryItem[] {
   const history = getArticleHistory();
-  const updated = [item, ...history].slice(0, MAX_HISTORY_ITEMS);
+  const existingIdx = history.findIndex((h) => h.id === item.id);
+  let updated: ArticleHistoryItem[];
+  if (existingIdx >= 0) {
+    updated = [...history];
+    updated[existingIdx] = item;
+  } else {
+    updated = [item, ...history].slice(0, MAX_HISTORY_ITEMS);
+  }
   try {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
   } catch (err) {

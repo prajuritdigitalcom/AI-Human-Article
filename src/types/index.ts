@@ -64,6 +64,8 @@ export interface ArticleHistoryItem {
   plainText: string;
   wordCount: number;
   createdAt: string;
+  categories?: string[];
+  tags?: string[];
   keyUsed?: string;
   generationDurationMs?: number;
 }

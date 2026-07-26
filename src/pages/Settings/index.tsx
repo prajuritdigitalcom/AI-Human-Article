@@ -354,7 +354,7 @@ export const SettingsPage: React.FC = () => {
               <Globe className="w-5 h-5 text-[#2271b1]" /> Konfigurasi WordPress REST API (Auto-Share)
             </h2>
             <p className="text-xs text-gray-500 mt-1">
-              Atur kredensial WordPress sekali saja di sini. Selanjutnya, Anda tinggal mengeklik <strong>"Kirim ke WordPress"</strong> pada halaman Preview untuk langsung mengirim artikel ke WordPress.
+              Atur kredensial WordPress sekali, lalu kirim artikel langsung dari halaman Preview.
             </p>
           </div>
           <span

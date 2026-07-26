@@ -110,8 +110,11 @@ export const PreviewPage: React.FC = () => {
       {/* Main Content Area */}
       {currentArticle ? (
         <ClassicEditorPreview
+          key={currentArticle.id}
+          articleId={currentArticle.id}
           htmlContent={currentArticle.html}
           keyword={currentArticle.keyword}
+          style={currentArticle.style}
           title={currentArticle.title}
           slug={currentArticle.slug}
           metaTitle={currentArticle.metaTitle}
@@ -119,9 +122,16 @@ export const PreviewPage: React.FC = () => {
           focusKeyword={currentArticle.focusKeyword}
           featuredImageUrl={currentArticle.featuredImageUrl}
           featuredImageAlt={currentArticle.featuredImageAlt}
+          initialCategories={currentArticle.categories}
+          initialTags={currentArticle.tags}
           panduanImAudit={currentArticle.panduanImAudit}
           wordCount={currentArticle.wordCount}
           generationTimeMs={currentArticle.generationDurationMs}
+          createdAt={currentArticle.createdAt}
+          onSaveArticle={(updatedItem) => {
+            setCurrentArticle(updatedItem);
+            setAllHistory(getArticleHistory());
+          }}
         />
       ) : (
         <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center space-y-4 shadow-xs">

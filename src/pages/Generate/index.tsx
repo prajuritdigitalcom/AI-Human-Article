@@ -197,7 +197,7 @@ export const GeneratePage: React.FC = () => {
               <Key className="w-3.5 h-3.5" />
               {savedKeys.length > 0 ? (
                 <span>
-                  {savedKeys.length} API Key Terpasang ({savedKeys[0].name})
+                  {savedKeys.length} API Key Terpasang
                 </span>
               ) : (
                 <span>Belum Ada API Key (Klik untuk Tambah)</span>
@@ -335,7 +335,7 @@ export const GeneratePage: React.FC = () => {
               <span className="font-medium text-gray-700 flex items-center gap-1">
                 <Key className="w-3 h-3 text-[#fe4c6f]" />
                 {savedKeys.length > 0
-                  ? `Key Aktif: ${savedKeys[0].name}`
+                  ? `${savedKeys.length} API Key Terpasang`
                   : 'Key: Belum Ditambahkan'}
               </span>
             </div>

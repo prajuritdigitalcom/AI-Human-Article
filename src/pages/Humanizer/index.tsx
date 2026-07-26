@@ -94,7 +94,7 @@ export const HumanizerPage: React.FC = () => {
               <h2 className="text-xl font-bold text-gray-900">Dashboard Humanizer Engine</h2>
             </div>
             <p className="text-xs text-gray-500 max-w-xl leading-relaxed">
-              Engine mengadopsi aturan dari repository <strong className="text-gray-900">blader/humanizer</strong>. Secara otomatis memeriksa pembaruan aturan di GitHub dengan cache 1 jam.
+              Mengadopsi aturan terbaru dari repository <strong className="text-gray-900">blader/humanizer</strong> dengan pembaruan otomatis setiap 1 jam.
             </p>
           </div>
 
