@@ -24,21 +24,41 @@ export interface GenerationResponse {
 export async function generateArticleApi(params: GenerateArticleParams): Promise<GenerationResponse> {
   const savedKeys = getSavedApiKeys().map((k) => k.key);
 
-  const response = await fetch('/api/generate', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      ...params,
-      customApiKeys: savedKeys,
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch('/api/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...params,
+        customApiKeys: savedKeys,
+      }),
+    });
+  } catch (netErr: any) {
+    throw new Error('Gagal terhubung ke server. Silakan periksa koneksi internet atau status server Anda.');
+  }
 
-  const data = await response.json();
+  let data: any = {};
+  try {
+    const rawText = await response.text();
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      if (rawText.toLowerCase().includes('the page c') || rawText.includes('<html') || rawText.includes('<!DOCTYPE')) {
+        data = { error: 'Server atau proxy jaringan mengalami error/timeout. Silakan periksa API Key Gemini Anda di menu Pengaturan.' };
+      } else {
+        data = { error: rawText || 'Respon dari server tidak dapat diproses.' };
+      }
+    }
+  } catch (err: any) {
+    data = { error: 'Gagal membaca respon server. Silakan coba lagi.' };
+  }
 
   if (!response.ok) {
-    throw new Error(data.error || 'Gagal menghasilkan artikel. Silakan periksa kembali API Key Anda.');
+    const errMsg = data?.error || 'Gagal menghasilkan artikel. Silakan periksa kembali API Key Gemini Anda di menu Pengaturan.';
+    throw new Error(errMsg);
   }
 
   return data;

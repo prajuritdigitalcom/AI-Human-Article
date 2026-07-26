@@ -676,7 +676,7 @@ app.post("/api/generate", async (req, res) => {
 
   if (allKeyTrackers.length === 0) {
     return res.status(400).json({
-      error: "Tidak ada Gemini API Key yang tersedia. Mohon tambahkan API Key di menu Settings atau atur GEMINI_API_KEY_1 di Environment Variables."
+      error: "API Key Gemini belum dimasukkan. Silakan masukan minimal 1 API Key Gemini di menu Pengaturan (Settings) agar dapat melakukan generate artikel."
     });
   }
 
@@ -993,8 +993,8 @@ CRITICAL REQUIREMENT: Ensure the article in "articleHtml" is comprehensive, high
     }
   }
 
-  return res.status(500).json({
-    error: `Gagal menghasilkan artikel setelah ${attemptCount} percobaan API Key. Error terakhir: ${lastErrorMsg}`
+  return res.status(400).json({
+    error: `Semua Gemini API Key yang terdaftar sedang mengalami limit kuota (429) atau tidak valid (${attemptCount} percobaan gagal). Silakan tambahkan API Key baru atau periksa status key Anda di menu Pengaturan.`
   });
 });
 

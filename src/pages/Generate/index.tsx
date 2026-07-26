@@ -10,11 +10,13 @@ import {
   Link2,
   ListFilter,
   Zap,
-  RotateCcw,
+  Key,
+  ShieldCheck,
+  ArrowRight,
 } from 'lucide-react';
 import { WritingStyle, InternalLinkItem, ArticleHistoryItem } from '../../types';
 import { generateArticleApi } from '../../services/gemini';
-import { saveArticleHistoryItem, setLastGeneratedArticle } from '../../utils/storage';
+import { saveArticleHistoryItem, setLastGeneratedArticle, getSavedApiKeys } from '../../utils/storage';
 
 export const GeneratePage: React.FC = () => {
   const navigate = useNavigate();
@@ -26,9 +28,14 @@ export const GeneratePage: React.FC = () => {
   const [imageLinksText, setImageLinksText] = useState('');
   const [internalLinksText, setInternalLinksText] = useState('');
 
+  // Saved API Keys state
+  const savedKeys = getSavedApiKeys();
+  const activeKeys = savedKeys.filter((k) => k.status === 'active' || !k.status);
+
   // UI state
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState<string>('');
+  const [activeKeyName, setActiveKeyName] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
   const writingStyles: WritingStyle[] = [
@@ -82,14 +89,29 @@ export const GeneratePage: React.FC = () => {
       return;
     }
 
+    // Check if user has no saved API keys
+    const currentKeys = getSavedApiKeys();
+    if (currentKeys.length === 0) {
+      setError(
+        'Belum ada Gemini API Key yang dimasukkan di browser. Silakan tambahkan minimal 1 API Key Gemini Anda di menu Pengaturan (Settings) agar sistem dapat memproses artikel.'
+      );
+      return;
+    }
+
     setError(null);
     setLoading(true);
 
+    const keyLabelToDisplay = currentKeys.length > 0
+      ? currentKeys[0].name || `API Key (${currentKeys[0].key.substring(0, 4)}...${currentKeys[0].key.substring(currentKeys[0].key.length - 4)})`
+      : 'Key Gemini Default';
+    
+    setActiveKeyName(keyLabelToDisplay);
+
     // Pipeline step updates for feedback
-    setCurrentStep('1/4: Membaca Humanizer Rules & Konfigurasi API Key...');
+    setCurrentStep(`1/4: Menyiapkan Humanizer Rules & Memilih ${keyLabelToDisplay}...`);
     await new Promise((r) => setTimeout(r, 400));
 
-    setCurrentStep('2/4: Mengirim Request ke Gemini Flash Proxy...');
+    setCurrentStep(`2/4: Mengirim Request ke Gemini Proxy dengan ${keyLabelToDisplay}...`);
 
     const imageLinks = imageLinksText
       .split('\n')
@@ -99,7 +121,7 @@ export const GeneratePage: React.FC = () => {
     const internalLinks = parseInternalLinks(internalLinksText);
 
     try {
-      setCurrentStep('3/4: Melakukan Rewrite Humanizer Prose & Menghapus AI Tone...');
+      setCurrentStep(`3/4: Melakukan Rewrite Humanizer Prose (${keyLabelToDisplay} Aktif)...`);
       const response = await generateArticleApi({
         keyword: keyword.trim(),
         style,
@@ -108,7 +130,11 @@ export const GeneratePage: React.FC = () => {
         internalLinks,
       });
 
-      setCurrentStep('4/4: Formatting HTML Classic WordPress Editor...');
+      if (response.keyUsedName) {
+        setActiveKeyName(response.keyUsedName);
+      }
+
+      setCurrentStep(`4/4: Formatting HTML Classic WordPress Editor (${response.keyUsedName || keyLabelToDisplay})...`);
       await new Promise((r) => setTimeout(r, 300));
 
       // Save to localStorage history
@@ -147,7 +173,7 @@ export const GeneratePage: React.FC = () => {
     <div className="space-y-8 max-w-5xl mx-auto">
       {/* Form Container */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-xs p-6 md:p-8">
-        <div className="flex items-center justify-between pb-6 border-b border-gray-100 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-gray-100 mb-6">
           <div>
             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
               <PenTool className="w-5 h-5 text-[#fe4c6f]" />
@@ -157,18 +183,63 @@ export const GeneratePage: React.FC = () => {
               Isi 5 informasi parameter di bawah ini. Prompt builder akan mengolah aturan humanizer secara otomatis.
             </p>
           </div>
-          <span className="text-xs font-semibold px-3 py-1 rounded-full bg-[#fe4c6f]/10 text-[#fe4c6f] hidden sm:inline-block">
-            Standard 5-Input Mode
-          </span>
+
+          {/* Active API Key Status Indicator */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => navigate('/settings')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                savedKeys.length > 0
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                  : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100 animate-pulse'
+              }`}
+              title="Kelola API Key Gemini di Menu Pengaturan"
+            >
+              <Key className="w-3.5 h-3.5" />
+              {savedKeys.length > 0 ? (
+                <span>
+                  {savedKeys.length} API Key Terpasang ({savedKeys[0].name})
+                </span>
+              ) : (
+                <span>Belum Ada API Key (Klik untuk Tambah)</span>
+              )}
+            </button>
+          </div>
         </div>
 
+        {/* Clear & Friendly Error Alert Box */}
         {error && (
-          <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold">Gagal Memproses Artikel</p>
-              <p className="text-xs text-red-600 mt-0.5">{error}</p>
+          <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm space-y-3">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+              <div className="space-y-1 flex-1">
+                <p className="font-bold text-rose-900">Gagal Memproses Artikel</p>
+                <p className="text-xs text-rose-700 leading-relaxed">{error}</p>
+              </div>
             </div>
+
+            {(error.toLowerCase().includes('api key') ||
+              error.toLowerCase().includes('settings') ||
+              error.toLowerCase().includes('pengaturan') ||
+              error.toLowerCase().includes('limit') ||
+              error.toLowerCase().includes('429') ||
+              error.toLowerCase().includes('dimasukkan')) && (
+              <div className="pt-2 border-t border-rose-200/60 flex items-center justify-between flex-wrap gap-2">
+                <span className="text-[11px] text-rose-600 font-medium">
+                  Informasi: Sistem membutuhkan Gemini API Key aktif agar pembuatan artikel dapat berjalan.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => navigate('/settings')}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#fe4c6f] hover:bg-[#e03c5d] text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-[#fe4c6f]/20 cursor-pointer"
+                >
+                  <Key className="w-3.5 h-3.5" />
+                  Input API Keys di Menu Settings
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -264,14 +335,22 @@ export const GeneratePage: React.FC = () => {
           </div>
 
           {/* Submit Button */}
-          <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
-            <div className="text-xs text-gray-400 flex items-center gap-1">
-              <Zap className="w-3.5 h-3.5 text-amber-500" /> Model: gemini-flash-latest Proxy
+          <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-xs text-gray-500 flex items-center gap-1.5 flex-wrap">
+              <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span>Model: gemini-flash-latest</span>
+              <span className="text-gray-300">•</span>
+              <span className="font-medium text-gray-700 flex items-center gap-1">
+                <Key className="w-3 h-3 text-[#fe4c6f]" />
+                {savedKeys.length > 0
+                  ? `Key Aktif: ${savedKeys[0].name}`
+                  : 'Key: Belum Ditambahkan'}
+              </span>
             </div>
             <button
               type="submit"
               disabled={loading || !keyword.trim()}
-              className="inline-flex items-center gap-2 bg-[#fe4c6f] hover:bg-[#e03c5d] text-white font-bold px-8 py-3.5 rounded-xl text-sm transition-all shadow-md shadow-[#fe4c6f]/30 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              className="inline-flex items-center gap-2 bg-[#fe4c6f] hover:bg-[#e03c5d] text-white font-bold px-8 py-3.5 rounded-xl text-sm transition-all shadow-md shadow-[#fe4c6f]/30 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer w-full sm:w-auto justify-center"
             >
               {loading ? (
                 <>
@@ -289,13 +368,21 @@ export const GeneratePage: React.FC = () => {
         </form>
       </div>
 
-      {/* Loading Progress Pipeline */}
+      {/* Loading Progress Pipeline with API Key Notification */}
       {loading && (
         <div className="p-6 bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl text-white shadow-lg space-y-4">
           <div className="flex items-center gap-3">
-            <RefreshCw className="w-5 h-5 text-[#fe4c6f] animate-spin" />
-            <div>
-              <h4 className="font-bold text-sm">Humanizer Engine Sedang Bekerja...</h4>
+            <RefreshCw className="w-5 h-5 text-[#fe4c6f] animate-spin shrink-0" />
+            <div className="space-y-0.5">
+              <h4 className="font-bold text-sm flex items-center gap-2">
+                Humanizer Engine Sedang Bekerja...
+                {activeKeyName && (
+                  <span className="text-[10px] bg-white/10 text-rose-300 px-2 py-0.5 rounded-md font-mono border border-white/10">
+                    <Key className="w-3 h-3 inline mr-1" />
+                    {activeKeyName}
+                  </span>
+                )}
+              </h4>
               <p className="text-xs text-gray-300">{currentStep}</p>
             </div>
           </div>
