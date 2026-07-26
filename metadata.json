@@ -1,0 +1,6 @@
+{
+  "name": "AI Human Article Generator - Prajurit Digital",
+  "description": "Generator Artikel SEO berbasis AI dengan Humanizer Engine, rotasi API Key, dan Auto-Share ke WordPress REST API oleh Prajurit Digital.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
