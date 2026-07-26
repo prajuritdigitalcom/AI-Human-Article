@@ -179,9 +179,7 @@ export const GeneratePage: React.FC = () => {
               <PenTool className="w-5 h-5 text-[#fe4c6f]" />
               Form Generator Artikel AI Human
             </h2>
-            <p className="text-xs text-gray-500 mt-1">
-              Isi 5 informasi parameter di bawah ini. Prompt builder akan mengolah aturan humanizer secara otomatis.
-            </p>
+            {/* Header Title */}
           </div>
 
           {/* Active API Key Status Indicator */}
@@ -259,7 +257,6 @@ export const GeneratePage: React.FC = () => {
                 required
                 className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#fe4c6f] focus:border-[#fe4c6f] text-sm text-gray-900 placeholder-gray-400 outline-none transition-all"
               />
-              <p className="text-[11px] text-gray-400">Kata kunci utama target SEO artikel Anda.</p>
             </div>
 
             {/* Input 2: Gaya Penulisan */}
@@ -279,7 +276,6 @@ export const GeneratePage: React.FC = () => {
                   </option>
                 ))}
               </select>
-              <p className="text-[11px] text-gray-400">Pilihan nada bicaranya (SEO, Semi Formal, Tutorial, dll).</p>
             </div>
           </div>
 
@@ -312,7 +308,6 @@ export const GeneratePage: React.FC = () => {
                 placeholder="https://example.com/gambar1.jpg&#10;https://example.com/gambar2.png"
                 className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#fe4c6f] focus:border-[#fe4c6f] text-sm text-gray-900 placeholder-gray-400 outline-none transition-all font-mono text-xs resize-none"
               />
-              <p className="text-[11px] text-gray-400">Gambar akan disisipkan otomatis dengan tag HTML &lt;img&gt;.</p>
             </div>
 
             {/* Input 5: Internal Link */}
@@ -328,9 +323,6 @@ export const GeneratePage: React.FC = () => {
                 placeholder="Teks Anchor Kopi Arabika&#10;https://websiteanda.com/kopi-arabika&#10;Panduan Sangrai Kopi&#10;https://websiteanda.com/sangrai"
                 className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#fe4c6f] focus:border-[#fe4c6f] text-sm text-gray-900 placeholder-gray-400 outline-none transition-all font-mono text-xs resize-none"
               />
-              <p className="text-[11px] text-gray-400">
-                Baris 1: Anchor Text, Baris 2: URL Target.
-              </p>
             </div>
           </div>
 
