@@ -23,6 +23,32 @@ export interface GenerationResponse {
   error?: string;
 }
 
+async function safeParseJsonResponse(response: Response, defaultErrorMsg: string): Promise<any> {
+  const rawText = await response.text();
+  let data: any = {};
+
+  try {
+    data = JSON.parse(rawText);
+  } catch (parseErr) {
+    if (rawText.toLowerCase().includes('the page c') || rawText.includes('<html') || rawText.includes('<!DOCTYPE')) {
+      data = {
+        error: `Server / Vercel mengembalikan respon HTML (HTTP ${response.status}). Mohon pastikan file vercel.json sudah ada di root project. Cek Vercel Logs untuk detail error.`,
+      };
+    } else {
+      data = {
+        error: rawText.trim() ? rawText : `${defaultErrorMsg} (HTTP ${response.status}). Cek Vercel Logs untuk detailnya.`,
+      };
+    }
+  }
+
+  if (!response.ok) {
+    const errMsg = data?.error || data?.message || `${defaultErrorMsg} (HTTP ${response.status}). Cek Vercel Logs untuk detailnya.`;
+    throw new Error(errMsg);
+  }
+
+  return data;
+}
+
 export async function generateArticleApi(params: GenerateArticleParams): Promise<GenerationResponse> {
   const savedKeys = getSavedApiKeys().map((k) => ({
     key: k.key,
@@ -44,42 +70,25 @@ export async function generateArticleApi(params: GenerateArticleParams): Promise
       }),
     });
   } catch (netErr: any) {
-    throw new Error('Gagal terhubung ke server. Silakan periksa koneksi internet atau status server Anda.');
+    throw new Error('Gagal terhubung ke server/Vercel. Silakan periksa koneksi internet atau status server Anda.');
   }
 
-  let data: any = {};
-  try {
-    const rawText = await response.text();
-    try {
-      data = JSON.parse(rawText);
-    } catch {
-      if (rawText.toLowerCase().includes('the page c') || rawText.includes('<html') || rawText.includes('<!DOCTYPE')) {
-        data = { error: 'Server atau proxy jaringan mengalami error/timeout. Silakan periksa API Key (Gemini/OpenRouter) Anda di menu Pengaturan.' };
-      } else {
-        data = { error: rawText || 'Respon dari server tidak dapat diproses.' };
-      }
-    }
-  } catch (err: any) {
-    data = { error: 'Gagal membaca respon server. Silakan coba lagi.' };
-  }
-
-  if (!response.ok) {
-    const errMsg = data?.error || 'Gagal menghasilkan artikel. Silakan periksa kembali API Key (Gemini/OpenRouter) Anda di menu Pengaturan.';
-    throw new Error(errMsg);
-  }
-
-  return data;
+  return await safeParseJsonResponse(response, 'Gagal menghasilkan artikel');
 }
 
 export async function testGeminiApiKeyApi(apiKey: string, provider: ApiProvider = 'gemini', model?: string) {
-  const response = await fetch('/api/test-key', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ apiKey, provider, model }),
-  });
+  let response: Response;
+  try {
+    response = await fetch('/api/test-key', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ apiKey, provider, model }),
+    });
+  } catch (netErr: any) {
+    throw new Error('Gagal terhubung ke server/Vercel. Silakan periksa koneksi internet Anda.');
+  }
 
-  const data = await response.json();
-  return data;
+  return await safeParseJsonResponse(response, 'Test API Key gagal');
 }

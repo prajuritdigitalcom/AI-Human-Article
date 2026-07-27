@@ -9,6 +9,51 @@ const PORT = 3000;
 
 app.use(express.json({ limit: "10mb" }));
 
+// Helper to mask sensitive keys for Vercel logs
+function maskApiKey(key?: string): string {
+  if (!key) return "N/A";
+  const trimmed = key.trim();
+  if (trimmed.length <= 8) return "***";
+  return `${trimmed.substring(0, 4)}...${trimmed.substring(trimmed.length - 4)}`;
+}
+
+// Structured logger specifically formatted for Vercel Deployment Logs
+function logVercel(
+  level: 'INFO' | 'SUCCESS' | 'WARN' | 'ERROR',
+  action: string,
+  message: string,
+  meta?: Record<string, any>
+) {
+  const timestamp = new Date().toISOString();
+  const metaStr = meta ? ` | Meta: ${JSON.stringify(meta)}` : '';
+  const logLine = `[VERCEL-LOG] [${timestamp}] [${level}] [${action}] ${message}${metaStr}`;
+  
+  if (level === 'ERROR') {
+    console.error(logLine);
+  } else if (level === 'WARN') {
+    console.warn(logLine);
+  } else {
+    console.log(logLine);
+  }
+}
+
+// Request logging middleware for all Vercel API routes
+app.use("/api", (req, res, next) => {
+  const startTime = Date.now();
+  const { method, originalUrl } = req;
+  res.on("finish", () => {
+    const duration = Date.now() - startTime;
+    const level = res.statusCode >= 500 ? 'ERROR' : res.statusCode >= 400 ? 'WARN' : 'INFO';
+    logVercel(
+      level,
+      'API_REQUEST',
+      `${method} ${originalUrl} -> ${res.statusCode} (${duration}ms)`,
+      { method, url: originalUrl, statusCode: res.statusCode, durationMs: duration }
+    );
+  });
+  next();
+});
+
 // In-memory key tracking for health metrics
 interface KeyTracker {
   key: string;
@@ -566,13 +611,21 @@ app.get("/api/health", (req, res) => {
 app.post("/api/test-key", async (req, res) => {
   const { apiKey, provider = 'gemini', model } = req.body;
   if (!apiKey || typeof apiKey !== "string") {
+    logVercel('WARN', 'API_KEY_TEST', 'Missing API Key in request body');
     return res.status(400).json({ status: "invalid", message: "API key is required" });
   }
 
   const cleanKey = apiKey.trim();
   const targetProvider: 'gemini' | 'openrouter' = provider === 'openrouter' ? 'openrouter' : 'gemini';
   const targetModel = model || (targetProvider === 'openrouter' ? 'openai/gpt-4o-mini' : undefined);
+  const maskedKey = maskApiKey(cleanKey);
   const startTime = Date.now();
+
+  logVercel('INFO', 'API_KEY_TEST_START', `Testing ${targetProvider.toUpperCase()} key (${maskedKey})`, {
+    provider: targetProvider,
+    model: targetModel,
+    maskedKey,
+  });
 
   try {
     if (targetProvider === 'openrouter') {
@@ -592,6 +645,11 @@ app.post("/api/test-key", async (req, res) => {
 
       if (openRouterRes.ok) {
         tracker.status = 'active';
+        logVercel('SUCCESS', 'API_KEY_TEST_SUCCESS', `OpenRouter key active & verified (${maskedKey})`, {
+          provider: 'openrouter',
+          model: targetModel,
+          latencyMs,
+        });
         return res.json({
           status: "active",
           message: `OpenRouter API Key valid & active (Model: ${targetModel})`,
@@ -600,13 +658,28 @@ app.post("/api/test-key", async (req, res) => {
         });
       } else if (openRouterRes.status === 401) {
         tracker.status = 'invalid';
+        logVercel('WARN', 'API_KEY_TEST_INVALID', `OpenRouter 401 Unauthorized (${maskedKey})`, {
+          provider: 'openrouter',
+          status: 401,
+          latencyMs,
+        });
         return res.status(401).json({ status: "invalid", message: "Invalid OpenRouter API Key (401 Unauthorized)", latencyMs });
       } else if (openRouterRes.status === 429) {
         tracker.status = 'cooldown';
         tracker.cooldownUntil = Date.now() + 60000;
+        logVercel('WARN', 'API_KEY_TEST_COOLDOWN', `OpenRouter 429 Quota Exceeded (${maskedKey})`, {
+          provider: 'openrouter',
+          status: 429,
+          latencyMs,
+        });
         return res.status(429).json({ status: "cooldown", message: "OpenRouter Quota Exceeded (429 Cooldown)", latencyMs });
       } else {
         tracker.status = 'offline';
+        logVercel('ERROR', 'API_KEY_TEST_FAILED', `OpenRouter returned HTTP ${openRouterRes.status} (${maskedKey})`, {
+          provider: 'openrouter',
+          status: openRouterRes.status,
+          latencyMs,
+        });
         return res.status(500).json({ status: "offline", message: `OpenRouter error status ${openRouterRes.status}`, latencyMs });
       }
     } else {
@@ -628,6 +701,12 @@ app.post("/api/test-key", async (req, res) => {
       tracker.latencyMs = latencyMs;
       tracker.lastUsed = new Date().toISOString();
 
+      logVercel('SUCCESS', 'API_KEY_TEST_SUCCESS', `Gemini key active & verified (${maskedKey})`, {
+        provider: 'gemini',
+        model: 'gemini-flash-latest',
+        latencyMs,
+      });
+
       return res.json({
         status: "active",
         message: "Gemini API Key valid and active",
@@ -647,14 +726,30 @@ app.post("/api/test-key", async (req, res) => {
 
     if (is401) {
       tracker.status = 'invalid';
+      logVercel('WARN', 'API_KEY_TEST_INVALID', `${targetProvider.toUpperCase()} Key Invalid (401) (${maskedKey}): ${errMsg}`, {
+        provider: targetProvider,
+        error: errMsg,
+        latencyMs,
+      });
       return res.status(401).json({ status: "invalid", message: "Invalid API Key (401 Unauthorized)", latencyMs });
     } else if (is429) {
       tracker.status = 'cooldown';
       tracker.cooldownUntil = Date.now() + 60000;
+      logVercel('WARN', 'API_KEY_TEST_COOLDOWN', `${targetProvider.toUpperCase()} Key Cooldown (429) (${maskedKey}): ${errMsg}`, {
+        provider: targetProvider,
+        error: errMsg,
+        latencyMs,
+      });
       return res.status(429).json({ status: "cooldown", message: "Quota exceeded (429 Cooldown 60s)", latencyMs });
     }
 
     tracker.status = 'offline';
+    logVercel('ERROR', 'API_KEY_TEST_EXCEPTION', `${targetProvider.toUpperCase()} Key test exception (${maskedKey}): ${errMsg}`, {
+      provider: targetProvider,
+      error: errMsg,
+      stack: error?.stack,
+      latencyMs,
+    });
     return res.status(500).json({ status: "offline", message: `API Key test failed: ${errMsg}`, latencyMs });
   }
 });
@@ -1121,6 +1216,16 @@ CRITICAL REQUIREMENT: Ensure the article in "articleHtml" is thoroughly written 
       // Run automated PanduanIM Writing & E-E-A-T Audit
       const panduanImAudit = auditPanduanIMStyle(rawHtml, wordCount, title, keyword.trim());
 
+      logVercel('SUCCESS', 'GENERATE_SUCCESS', `Successfully generated article for "${keyword.trim()}"`, {
+        keyword: keyword.trim(),
+        title,
+        wordCount,
+        latencyMs,
+        keyName: selectedTracker.name,
+        provider: selectedTracker.provider,
+        model: actualModelUsed || selectedTracker.model,
+      });
+
       return res.json({
         success: true,
         title,
@@ -1161,9 +1266,21 @@ CRITICAL REQUIREMENT: Ensure the article in "articleHtml" is thoroughly written 
       }
 
       lastErrorMsg = `Attempt ${attemptCount} with key ${selectedTracker.name} failed: ${errMsg}`;
-      console.warn(lastErrorMsg);
+      logVercel('WARN', 'GENERATE_ATTEMPT_FAILED', `Attempt ${attemptCount} failed on key ${selectedTracker.name}: ${errMsg}`, {
+        attempt: attemptCount,
+        keyName: selectedTracker.name,
+        provider: selectedTracker.provider,
+        error: errMsg,
+        status: selectedTracker.status,
+      });
     }
   }
+
+  logVercel('ERROR', 'GENERATE_ALL_KEYS_EXHAUSTED', `Article generation failed after ${attemptCount} attempts for keyword "${keyword.trim()}". All keys exhausted.`, {
+    keyword: keyword.trim(),
+    attempts: attemptCount,
+    lastError: lastErrorMsg,
+  });
 
   return res.status(400).json({
     error: `Semua API Key (Gemini / OpenRouter) yang terdaftar sedang mengalami limit kuota (429) atau tidak valid (${attemptCount} percobaan gagal). Silakan tambahkan API Key baru atau periksa status key Anda di menu Pengaturan.`
@@ -1187,8 +1304,13 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server AI Human Article Generator running on http://0.0.0.0:${PORT}`);
+    logVercel('INFO', 'SERVER_STARTUP', `Server AI Human Article Generator running on http://0.0.0.0:${PORT}`);
   });
 }
 
-startServer();
+export { app };
+export default app;
+
+if (process.env.VERCEL !== "1" && !process.env.VERCEL_ENV) {
+  startServer();
+}
