@@ -878,6 +878,242 @@ app.post("/api/update-humanizer", async (req, res) => {
   }
 });
 
+// --- WORDPRESS REST API PROXY ENDPOINTS WITH VERCEL LOGGING ---
+
+// 1. WordPress REST API Test Connection Proxy
+app.post("/api/wordpress/test", async (req, res) => {
+  const { wpSiteUrl, wpUsername, wpAppPassword } = req.body;
+
+  logVercel('INFO', 'WP_TEST_START', `Testing WordPress REST API connection for site: ${wpSiteUrl || 'N/A'}`, {
+    wpSiteUrl,
+    wpUsername,
+    hasPassword: Boolean(wpAppPassword),
+  });
+
+  if (!wpSiteUrl || typeof wpSiteUrl !== 'string' || !wpSiteUrl.trim()) {
+    logVercel('WARN', 'WP_TEST_INVALID_INPUT', 'Missing WordPress site URL');
+    return res.status(400).json({ error: 'WordPress Site URL wajib diisi.' });
+  }
+
+  const cleanUrl = wpSiteUrl.trim().replace(/\/+$/, '');
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'User-Agent': 'AI-Human-Article-Generator/2.9.1 (Vercel Backend)',
+  };
+
+  const hasCredentials = wpUsername && wpUsername.trim() && wpAppPassword && wpAppPassword.trim();
+  if (hasCredentials) {
+    const cleanPass = wpAppPassword.trim().replace(/\s+/g, '');
+    const authString = Buffer.from(`${wpUsername.trim()}:${cleanPass}`).toString('base64');
+    headers['Authorization'] = `Basic ${authString}`;
+  }
+
+  try {
+    if (hasCredentials) {
+      logVercel('INFO', 'WP_TEST_AUTH_CHECK', `Testing authentication via /wp-json/wp/v2/users/me for user "${wpUsername.trim()}" at ${cleanUrl}`);
+      const userRes = await fetch(`${cleanUrl}/wp-json/wp/v2/users/me`, {
+        method: 'GET',
+        headers,
+      });
+
+      const userText = await userRes.text();
+      let userData: any = null;
+      try { userData = JSON.parse(userText); } catch (e) {}
+
+      if (userRes.ok && userData && userData.id) {
+        logVercel('SUCCESS', 'WP_TEST_AUTH_SUCCESS', `WordPress REST API Auth Verified! User ID: ${userData.id}, Name: "${userData.name}", Roles: ${JSON.stringify(userData.roles || [])}`, {
+          userId: userData.id,
+          username: userData.slug || wpUsername.trim(),
+          name: userData.name,
+          roles: userData.roles,
+        });
+
+        return res.json({
+          success: true,
+          authenticated: true,
+          user: userData.name || wpUsername.trim(),
+          roles: userData.roles || [],
+          message: `Koneksi & Otentikasi Berhasil! Terhubung sebagai "${userData.name || wpUsername}" (${(userData.roles || ['user']).join(', ')}) di ${cleanUrl}/wp-json/wp/v2/posts.`,
+        });
+      } else {
+        logVercel('WARN', 'WP_TEST_AUTH_FAILED', `WordPress REST API Auth Failed (Status ${userRes.status}): ${userData?.message || userText.substring(0, 200)}`, {
+          status: userRes.status,
+          statusText: userRes.statusText,
+          wpErrorMessage: userData?.message,
+          wpErrorCode: userData?.code,
+          rawResponse: userText.substring(0, 300),
+          siteUrl: cleanUrl,
+          usernameSent: wpUsername.trim(),
+        });
+
+        let detailAdvice = `Gagal otentikasi (Status ${userRes.status}: ${userData?.message || 'Unauthorized'}). `;
+        if (userRes.status === 401) {
+          detailAdvice += `Application Password atau Username tidak cocok, atau server WordPress (Apache/LiteSpeed/Nginx) memotong header Authorization Basic. Solusi: Tambahkan 'CGIPassAuth On' dan 'SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1' pada file .htaccess di server WordPress Anda.`;
+        } else if (userRes.status === 403) {
+          detailAdvice += `User "${wpUsername}" tidak memiliki izin REST API / posting. Pastikan role user adalah Administrator atau Editor di WP Admin.`;
+        }
+
+        return res.status(userRes.status || 401).json({
+          success: false,
+          authenticated: false,
+          status: userRes.status,
+          error: detailAdvice,
+          wpCode: userData?.code,
+          wpMessage: userData?.message,
+        });
+      }
+    } else {
+      logVercel('INFO', 'WP_TEST_PUBLIC_CHECK', `Testing public REST API endpoint /wp-json/wp/v2/posts for ${cleanUrl}`);
+      const publicRes = await fetch(`${cleanUrl}/wp-json/wp/v2/posts?per_page=1`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (publicRes.ok) {
+        logVercel('SUCCESS', 'WP_TEST_PUBLIC_SUCCESS', `Public WordPress REST API active at ${cleanUrl}`);
+        return res.json({
+          success: true,
+          authenticated: false,
+          message: `REST API Publik Aktif di ${cleanUrl}. Namun Username Admin & Application Password belum diisi, sehingga belum dapat melakukan posting.`,
+        });
+      } else {
+        logVercel('WARN', 'WP_TEST_PUBLIC_FAILED', `Public REST API check failed (Status ${publicRes.status}) for ${cleanUrl}`);
+        return res.status(publicRes.status).json({
+          success: false,
+          error: `Gagal mengakses REST API di ${cleanUrl} (Status ${publicRes.status}). Pastikan WordPress REST API aktif dan tidak diblokir firewall/plugin.`,
+        });
+      }
+    }
+  } catch (err: any) {
+    const errMsg = err?.message || String(err);
+    logVercel('ERROR', 'WP_TEST_EXCEPTION', `Network / Server exception when testing WordPress connection to ${cleanUrl}: ${errMsg}`, {
+      cleanUrl,
+      error: errMsg,
+      stack: err?.stack,
+    });
+    return res.status(500).json({
+      success: false,
+      error: `Gagal terhubung ke WordPress server (${cleanUrl}): ${errMsg}. Pastikan URL dapat diakses dan diawali https://.`,
+    });
+  }
+});
+
+// 2. WordPress REST API Publish Proxy Endpoint
+app.post("/api/wordpress/publish", async (req, res) => {
+  const { wpSiteUrl, wpUsername, wpAppPassword, postPayload } = req.body;
+
+  logVercel('INFO', 'WP_PUBLISH_REQUEST', `Initiating publish to WordPress site: ${wpSiteUrl || 'N/A'} for title: "${postPayload?.title || 'Untitled'}"`, {
+    wpSiteUrl,
+    wpUsername,
+    postTitle: postPayload?.title,
+    postSlug: postPayload?.slug,
+    postStatus: postPayload?.status || 'draft',
+    hasPassword: Boolean(wpAppPassword),
+  });
+
+  if (!wpSiteUrl || !wpSiteUrl.trim()) {
+    logVercel('WARN', 'WP_PUBLISH_MISSING_URL', 'WordPress Site URL is missing');
+    return res.status(400).json({ error: 'WordPress Site URL wajib diisi.' });
+  }
+
+  if (!wpUsername || !wpUsername.trim() || !wpAppPassword || !wpAppPassword.trim()) {
+    logVercel('WARN', 'WP_PUBLISH_MISSING_CREDENTIALS', 'WordPress Username or Application Password missing');
+    return res.status(400).json({ error: 'Username Admin dan Application Password wajib diisi untuk melakukan publish.' });
+  }
+
+  const cleanUrl = wpSiteUrl.trim().replace(/\/+$/, '');
+  const cleanAppPassword = wpAppPassword.trim().replace(/\s+/g, '');
+  const authString = Buffer.from(`${wpUsername.trim()}:${cleanAppPassword}`).toString('base64');
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Authorization': `Basic ${authString}`,
+    'User-Agent': 'AI-Human-Article-Generator/2.9.1 (Vercel Backend)',
+  };
+
+  try {
+    logVercel('INFO', 'WP_PUBLISH_SENDING', `Sending POST request to ${cleanUrl}/wp-json/wp/v2/posts with Authorization Basic header`);
+    
+    const wpRes = await fetch(`${cleanUrl}/wp-json/wp/v2/posts`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(postPayload || {}),
+    });
+
+    const resText = await wpRes.text();
+    let resData: any = null;
+    try { resData = JSON.parse(resText); } catch (e) {}
+
+    if (wpRes.ok && (wpRes.status === 200 || wpRes.status === 201)) {
+      const postId = resData?.id;
+      const postLink = resData?.link;
+      
+      logVercel('SUCCESS', 'WP_PUBLISH_SUCCESS', `ARTICLE PUBLISHED SUCCESSFULLY TO WORDPRESS! Post ID: ${postId}, Link: ${postLink}`, {
+        postId,
+        postLink,
+        title: postPayload?.title,
+        status: resData?.status,
+        siteUrl: cleanUrl,
+      });
+
+      return res.json({
+        success: true,
+        postId,
+        postLink,
+        status: resData?.status || 'draft',
+        message: `Artikel berhasil dikirim ke WordPress! (Post ID: ${postId}). ${postLink ? `Link preview: ${postLink}` : ''}`,
+        rawResponse: resData,
+      });
+    } else {
+      logVercel('ERROR', 'WP_PUBLISH_FAILED', `WordPress REST API returned Error ${wpRes.status} (${wpRes.statusText}): ${resData?.message || resText.substring(0, 300)}`, {
+        statusCode: wpRes.status,
+        statusText: wpRes.statusText,
+        wpCode: resData?.code,
+        wpMessage: resData?.message,
+        wpData: resData?.data,
+        rawResponseBody: resText.substring(0, 500),
+        siteUrl: cleanUrl,
+        usernameSent: wpUsername.trim(),
+      });
+
+      let helpfulErrorMessage = `Respon Server WordPress (Status ${wpRes.status}): ${resData?.message || wpRes.statusText || 'Gagal mempublikasikan post'}.`;
+
+      if (wpRes.status === 401) {
+        helpfulErrorMessage = `Respon Server WordPress (Status 401): ${resData?.message || 'Sorry, you are not allowed to create posts as this user.'}\n\n` +
+          `📌 SOLUSI CEK KREDENSIAL & SERVER WORDPRESS:\n` +
+          `1. Header Authorization Terpotong Server: Pada web server Apache / LiteSpeed (seperti saunakayu.com), tambahkan dua baris ini di file .htaccess WordPress Anda:\n` +
+          `   SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1\n` +
+          `   CGIPassAuth On\n` +
+          `2. Role User: Pastikan akun "${wpUsername.trim()}" di WP Admin memegang role Administrator atau Editor.\n` +
+          `3. Password Baru: Di WP Admin -> Users -> Profile -> Application Passwords, hapus password lama dan buat Application Password baru.`;
+      } else if (wpRes.status === 403) {
+        helpfulErrorMessage = `Respon Server WordPress (Status 403 Forbidden): User "${wpUsername.trim()}" tidak memiliki hak akses (capabilities) untuk mempublikasikan post di WordPress ini. Ubah role user menjadi Administrator/Editor di WP Admin.`;
+      }
+
+      return res.status(wpRes.status || 400).json({
+        success: false,
+        statusCode: wpRes.status,
+        error: helpfulErrorMessage,
+        wpCode: resData?.code,
+        wpMessage: resData?.message,
+        rawResponse: resText.substring(0, 500),
+      });
+    }
+  } catch (err: any) {
+    const errMsg = err?.message || String(err);
+    logVercel('ERROR', 'WP_PUBLISH_EXCEPTION', `Exception occurred during WordPress publish to ${cleanUrl}: ${errMsg}`, {
+      cleanUrl,
+      error: errMsg,
+      stack: err?.stack,
+    });
+
+    return res.status(500).json({
+      success: false,
+      error: `Gagal mengirim artikel ke WordPress REST API (${cleanUrl}): ${errMsg}. Pastikan URL terhubung ke internet dan mendukung REST API.`,
+    });
+  }
+});
+
 // MAIN ARTICLE GENERATION ENDPOINT WITH ROUND ROBIN & RETRY
 app.post("/api/generate", async (req, res) => {
   const { keyword, style, referenceInfo, imageLinks, internalLinks, customApiKeys } = req.body;

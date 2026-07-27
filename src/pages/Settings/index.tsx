@@ -190,32 +190,32 @@ export const SettingsPage: React.FC = () => {
     setTestingWpConnection(true);
     setWpStatusMessage(null);
     try {
-      const cleanUrl = wpSiteUrl.trim().replace(/\/+$/, '');
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      if (wpUsername.trim() && wpAppPassword.trim()) {
-        const authString = btoa(`${wpUsername.trim()}:${wpAppPassword.trim()}`);
-        headers['Authorization'] = `Basic ${authString}`;
-      }
-      const res = await fetch(`${cleanUrl}/wp-json/wp/v2/posts?per_page=1`, {
-        method: 'GET',
-        headers,
+      const res = await fetch('/api/wordpress/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          wpSiteUrl: wpSiteUrl.trim(),
+          wpUsername: wpUsername.trim(),
+          wpAppPassword: wpAppPassword.trim(),
+        }),
       });
-      if (res.ok) {
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
         setWpStatusMessage({
-          text: `Koneksi Berhasil! REST API aktif dan siap menerima postingan di ${cleanUrl}/wp-json/wp/v2/posts.`,
+          text: data.message || `Koneksi Berhasil! REST API aktif dan siap menerima postingan.`,
           isError: false,
         });
       } else {
         setWpStatusMessage({
-          text: `Respon server WordPress: Status ${res.status} (${res.statusText}). Mohon periksa kembali Username Admin & Application Password.`,
+          text: data.error || `Respon server WordPress: Status ${res.status}. Mohon periksa kembali Username Admin & Application Password.`,
           isError: true,
         });
       }
     } catch (err: any) {
       setWpStatusMessage({
-        text: `Gagal terhubung ke WordPress REST API: ${err?.message || 'CORS / Network Error'}. Pastikan URL diawali https:// dan website mendukung REST API.`,
+        text: `Gagal terhubung ke WordPress REST API Proxy: ${err?.message || 'Network Error'}. Pastikan URL diawali https:// dan website mendukung REST API.`,
         isError: true,
       });
     } finally {

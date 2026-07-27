@@ -410,16 +410,6 @@ export const ClassicEditorPreview: React.FC<ClassicEditorPreviewProps> = ({
     setPublishSuccess(false);
     setPublishStatusMsg(null);
 
-    const cleanUrl = wpSiteUrl.trim().replace(/\/+$/, '');
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    if (wpUsername.trim() && wpAppPassword.trim()) {
-      const auth = btoa(`${wpUsername.trim()}:${wpAppPassword.trim()}`);
-      headers['Authorization'] = `Basic ${auth}`;
-    }
-
     const selectedCategories = categories.filter((c) => c.checked).map((c) => c.name);
 
     const postPayload = {
@@ -439,32 +429,37 @@ export const ClassicEditorPreview: React.FC<ClassicEditorPreviewProps> = ({
     };
 
     try {
-      const res = await fetch(`${cleanUrl}/wp-json/wp/v2/posts`, {
+      const res = await fetch('/api/wordpress/publish', {
         method: 'POST',
-        headers,
-        body: JSON.stringify(postPayload),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          wpSiteUrl: wpSiteUrl.trim(),
+          wpUsername: wpUsername.trim(),
+          wpAppPassword: wpAppPassword.trim(),
+          postPayload,
+        }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
+      const data = await res.json();
+
+      if (res.ok && data.success) {
         setPublishSuccess(true);
         setPublishStatusMsg({
-          text: `Artikel Berhasil Dipublikasikan ke WordPress! (Post ID: ${data.id || 'N/A'}, Status: DRAFT). Link: ${data.link || cleanUrl}`,
+          text: data.message || `Artikel Berhasil Dipublikasikan ke WordPress! (Post ID: ${data.postId || 'N/A'}, Status: DRAFT).`,
           isError: false,
         });
       } else {
-        const errorData = await res.json().catch(() => ({}));
-        setPublishSuccess(true);
+        setPublishSuccess(false);
         setPublishStatusMsg({
-          text: `Respon Server WordPress (Status ${res.status}): ${errorData.message || res.statusText || 'Gagal autentikasi'}. Payload JSON artikel tetap siap dikirim.`,
+          text: data.error || `Respon Server WordPress (Status ${res.status}): Gagal mempublikasikan post.`,
           isError: true,
         });
       }
     } catch (err: any) {
-      setPublishSuccess(true);
+      setPublishSuccess(false);
       setPublishStatusMsg({
-        text: `Simulasi / Pengiriman Berhasil! Data JSON artikel terstruktur siap dikirim ke ${cleanUrl}/wp-json/wp/v2/posts.`,
-        isError: false,
+        text: `Gagal mengirim ke WordPress REST API Proxy: ${err?.message || 'Network Error'}.`,
+        isError: true,
       });
     } finally {
       setPublishing(false);
@@ -1445,7 +1440,7 @@ export const ClassicEditorPreview: React.FC<ClassicEditorPreviewProps> = ({
                   ) : (
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   )}
-                  <span>{publishStatusMsg.text}</span>
+                  <span className="whitespace-pre-line leading-relaxed">{publishStatusMsg.text}</span>
                 </div>
               )}
             </div>
