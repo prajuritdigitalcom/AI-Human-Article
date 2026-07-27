@@ -20,8 +20,10 @@ import {
   Send,
   Save,
   HelpCircle,
+  Cpu,
+  Sparkles,
 } from 'lucide-react';
-import { ApiKeyConfig } from '../../types';
+import { ApiKeyConfig, ApiProvider } from '../../types';
 import {
   getSavedApiKeys,
   saveApiKey,
@@ -35,6 +37,12 @@ import { testGeminiApiKeyApi } from '../../services/gemini';
 export const SettingsPage: React.FC = () => {
   const [keys, setKeys] = useState<ApiKeyConfig[]>([]);
   const [newKeyInput, setNewKeyInput] = useState('');
+  const [provider, setProvider] = useState<ApiProvider>('gemini');
+  const [selectedModel, setSelectedModel] = useState<string>('openai/gpt-4o-mini');
+  const [customModelInput, setCustomModelInput] = useState<string>('');
+  const [fallbackModels, setFallbackModels] = useState<string[]>([]);
+  const [selectedFallbackOption, setSelectedFallbackOption] = useState<string>('google/gemini-2.5-flash');
+  const [customFallbackInput, setCustomFallbackInput] = useState<string>('');
   const [showRawKeys, setShowRawKeys] = useState<Record<string, boolean>>({});
   const [testingId, setTestingId] = useState<string | null>(null);
   const [addingKey, setAddingKey] = useState(false);
@@ -59,6 +67,21 @@ export const SettingsPage: React.FC = () => {
     setWpAppPassword(currentSettings.wpAppPassword || '');
   }, []);
 
+  const handleAddFallbackModel = () => {
+    const modelToAdd = selectedFallbackOption === 'custom' ? customFallbackInput.trim() : selectedFallbackOption.trim();
+    if (!modelToAdd) return;
+    if (!fallbackModels.includes(modelToAdd)) {
+      setFallbackModels([...fallbackModels, modelToAdd]);
+    }
+    if (selectedFallbackOption === 'custom') {
+      setCustomFallbackInput('');
+    }
+  };
+
+  const handleRemoveFallbackModel = (index: number) => {
+    setFallbackModels(fallbackModels.filter((_, i) => i !== index));
+  };
+
   const handleAddKey = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newKeyInput.trim()) return;
@@ -67,22 +90,29 @@ export const SettingsPage: React.FC = () => {
     setStatusMessage(null);
 
     const keyVal = newKeyInput.trim();
+    const chosenModel = provider === 'openrouter'
+      ? (selectedModel === 'custom' ? customModelInput.trim() : selectedModel)
+      : undefined;
+    const chosenFallbacks = provider === 'openrouter' && fallbackModels.length > 0 ? fallbackModels : undefined;
+
     try {
       // Test key latency and validity before saving
-      const testResult = await testGeminiApiKeyApi(keyVal);
+      const testResult = await testGeminiApiKeyApi(keyVal, provider, chosenModel);
 
-      const updated = saveApiKey(keyVal);
+      const updated = saveApiKey(keyVal, undefined, provider, chosenModel, chosenFallbacks);
       setKeys(updated);
       setNewKeyInput('');
+      setFallbackModels([]);
       setStatusMessage({
-        text: `API Key berhasil ditambahkan dan terverifikasi (${testResult.latencyMs || 0}ms)!`,
+        text: `API Key ${provider === 'openrouter' ? 'OpenRouter' : 'Gemini'} berhasil ditambahkan dan terverifikasi (${testResult.latencyMs || 0}ms)!`,
         isError: false,
       });
     } catch (err: any) {
       // Still save even if test failed, but mark notice
-      const updated = saveApiKey(keyVal);
+      const updated = saveApiKey(keyVal, undefined, provider, chosenModel, chosenFallbacks);
       setKeys(updated);
       setNewKeyInput('');
+      setFallbackModels([]);
       setStatusMessage({
         text: `API Key tersimpan, namun test panggil gagal: ${err?.message}`,
         isError: true,
@@ -95,7 +125,7 @@ export const SettingsPage: React.FC = () => {
   const handleTestKey = async (item: ApiKeyConfig) => {
     setTestingId(item.id);
     try {
-      const res = await testGeminiApiKeyApi(item.key);
+      const res = await testGeminiApiKeyApi(item.key, item.provider, item.model);
       const updatedKeys = keys.map((k) => {
         if (k.id === item.id) {
           return {
@@ -201,18 +231,18 @@ export const SettingsPage: React.FC = () => {
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
-      {/* Gemini API Key Management */}
+      {/* Gemini & OpenRouter API Key Management */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-xs p-6 md:p-8 space-y-6">
-        <div className="flex items-center justify-between pb-6 border-b border-gray-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-gray-100 gap-3">
           <div>
             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <Key className="w-5 h-5 text-[#fe4c6f]" /> Kelola Gemini API Keys
+              <Key className="w-5 h-5 text-[#fe4c6f]" /> Kelola API Keys (Gemini & OpenRouter)
             </h2>
             <p className="text-xs text-gray-500 mt-1">
-              Mendukung banyak API Key tanpa batas. Rotasi otomatis (Round Robin) dan auto-fallback saat terkena limit quota 429.
+              Mendukung Google Gemini API Key dan OpenRouter (GPT-4o, Claude 3.5, DeepSeek, dll) tanpa batas. Rotasi otomatis (Round Robin) & auto-fallback saat quota limit.
             </p>
           </div>
-          <span className="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800">
+          <span className="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 shrink-0 self-start sm:self-auto">
             {keys.length} Custom Key Tersimpan
           </span>
         </div>
@@ -237,22 +267,157 @@ export const SettingsPage: React.FC = () => {
         {/* Add Key Form */}
         <form onSubmit={handleAddKey} className="bg-gray-50 p-5 rounded-xl border border-gray-200 space-y-4">
           <h3 className="font-bold text-xs uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
-            <Plus className="w-4 h-4 text-[#fe4c6f]" /> Tambah Gemini API Key Baru
+            <Plus className="w-4 h-4 text-[#fe4c6f]" /> Tambah API Key Baru
           </h3>
 
+          {/* Provider Selector */}
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-semibold text-gray-600">Pilih Provider AI</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setProvider('gemini')}
+                className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  provider === 'gemini'
+                    ? 'bg-white border-[#fe4c6f] text-[#fe4c6f] shadow-xs'
+                    : 'bg-gray-100 border-gray-200 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Google Gemini
+              </button>
+              <button
+                type="button"
+                onClick={() => setProvider('openrouter')}
+                className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  provider === 'openrouter'
+                    ? 'bg-white border-purple-600 text-purple-700 shadow-xs'
+                    : 'bg-gray-100 border-gray-200 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <Cpu className="w-3.5 h-3.5" />
+                OpenRouter (GPT-4o, Claude, DeepSeek)
+              </button>
+            </div>
+          </div>
+
+          {/* OpenRouter Model Selector */}
+          {provider === 'openrouter' && (
+            <div className="space-y-3 p-3.5 bg-purple-50/60 rounded-xl border border-purple-200">
+              <div>
+                <label className="block text-[11px] font-bold text-purple-900 mb-1">
+                  Pilih Model OpenRouter Target
+                </label>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-purple-200 bg-white text-xs font-semibold text-gray-800 focus:ring-2 focus:ring-purple-500 outline-none"
+                >
+                  <option value="openai/gpt-4o-mini">openai/gpt-4o-mini (Cepat, Hemat & Rekomendasi)</option>
+                  <option value="openai/gpt-4o">openai/gpt-4o (GPT-4o Full)</option>
+                  <option value="anthropic/claude-3.5-sonnet">anthropic/claude-3.5-sonnet (Claude 3.5)</option>
+                  <option value="google/gemini-2.5-flash">google/gemini-2.5-flash (Gemini 2.5 Flash)</option>
+                  <option value="deepseek/deepseek-chat">deepseek/deepseek-chat (DeepSeek V3)</option>
+                  <option value="meta-llama/llama-3.3-70b-instruct">meta-llama/llama-3.3-70b-instruct (Llama 3.3 70B)</option>
+                  <option value="custom">-- Masukkan Model Custom --</option>
+                </select>
+              </div>
+
+              {selectedModel === 'custom' && (
+                <div>
+                  <label className="block text-[11px] font-medium text-purple-800 mb-1">
+                    Model ID Custom (e.g. mistralai/mistral-large)
+                  </label>
+                  <input
+                    type="text"
+                    value={customModelInput}
+                    onChange={(e) => setCustomModelInput(e.target.value)}
+                    placeholder="misal: mistralai/mistral-large-2411"
+                    required={selectedModel === 'custom'}
+                    className="w-full px-3 py-2 rounded-xl border border-purple-300 text-xs font-mono bg-white text-gray-900 outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              )}
+
+              {/* Fallback Models Section */}
+              <div className="pt-2 border-t border-purple-200/60 space-y-2">
+                <label className="block text-[11px] font-bold text-purple-900">
+                  Model Cadangan / Fallback (Opsional)
+                </label>
+                <p className="text-[10px] text-purple-700">
+                  Jika model utama gagal/overloaded, OpenRouter akan otomatis berpindah ke model cadangan sesuai urutan ini.
+                </p>
+                <div className="flex flex-col sm:flex-row items-center gap-2">
+                  <select
+                    value={selectedFallbackOption}
+                    onChange={(e) => setSelectedFallbackOption(e.target.value)}
+                    className="w-full sm:w-auto flex-1 px-3 py-1.5 rounded-xl border border-purple-200 bg-white text-xs font-semibold text-gray-800 outline-none"
+                  >
+                    <option value="google/gemini-2.5-flash">google/gemini-2.5-flash</option>
+                    <option value="openai/gpt-4o-mini">openai/gpt-4o-mini</option>
+                    <option value="deepseek/deepseek-chat">deepseek/deepseek-chat</option>
+                    <option value="anthropic/claude-3.5-sonnet">anthropic/claude-3.5-sonnet</option>
+                    <option value="meta-llama/llama-3.3-70b-instruct">meta-llama/llama-3.3-70b-instruct</option>
+                    <option value="custom">-- Custom Fallback Model --</option>
+                  </select>
+                  {selectedFallbackOption === 'custom' && (
+                    <input
+                      type="text"
+                      value={customFallbackInput}
+                      onChange={(e) => setCustomFallbackInput(e.target.value)}
+                      placeholder="misal: qwen/qwen-2.5-72b-instruct"
+                      className="w-full sm:w-auto flex-1 px-3 py-1.5 rounded-xl border border-purple-300 text-xs font-mono bg-white outline-none"
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleAddFallbackModel}
+                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shrink-0 cursor-pointer w-full sm:w-auto"
+                  >
+                    + Tambah Cadangan
+                  </button>
+                </div>
+
+                {fallbackModels.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {fallbackModels.map((m, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white text-purple-900 font-mono text-[11px] border border-purple-300 shadow-xs">
+                        <span className="font-bold text-purple-600">{idx + 1}.</span> {m}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFallbackModel(idx)}
+                          className="text-purple-400 hover:text-purple-700 ml-0.5 cursor-pointer font-bold"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Key Input */}
           <div className="flex flex-col sm:flex-row items-end gap-3">
             <div className="w-full">
               <label className="block text-[11px] font-semibold text-gray-600 mb-1">
-                API Key (AI Studio)
+                {provider === 'openrouter' ? 'OpenRouter API Key (sk-or-v1-...)' : 'API Key Gemini (AI Studio)'}
               </label>
               <input
                 type="text"
                 value={newKeyInput}
                 onChange={(e) => setNewKeyInput(e.target.value)}
-                placeholder="AIzaSy..."
+                placeholder={provider === 'openrouter' ? 'sk-or-v1-...' : 'AIzaSy...'}
                 required
                 className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 text-xs font-mono bg-white text-gray-900 focus:ring-2 focus:ring-[#fe4c6f] focus:border-[#fe4c6f] outline-none"
               />
+              {provider === 'openrouter' && newKeyInput.trim() && !newKeyInput.trim().startsWith('sk-or-') && (
+                <p className="text-[11px] text-amber-600 mt-1 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3 shrink-0" />
+                  Catatan: Key OpenRouter biasanya diawali dengan <code className="font-mono bg-amber-100 px-1 rounded">sk-or-v1-</code>.
+                </p>
+              )}
             </div>
 
             <button
@@ -284,9 +449,20 @@ export const SettingsPage: React.FC = () => {
             <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden">
               {keys.map((item) => (
                 <div key={item.id} className="p-4 bg-white hover:bg-gray-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="space-y-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-xs text-gray-900">{item.name}</span>
+
+                      {item.provider === 'openrouter' ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+                          OPENROUTER
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                          GEMINI
+                        </span>
+                      )}
+
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                           item.status === 'active'
@@ -311,7 +487,19 @@ export const SettingsPage: React.FC = () => {
                       </button>
                     </p>
 
-                    <div className="flex items-center gap-3 text-[11px] text-gray-400 pt-1">
+                    <div className="flex items-center gap-2 text-[11px] text-gray-400 pt-0.5 flex-wrap">
+                      {item.provider === 'openrouter' && (
+                        <>
+                          <span className="text-[10px] font-mono text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                            Model: {item.model || 'openai/gpt-4o-mini'}
+                          </span>
+                          {item.fallbackModels && item.fallbackModels.length > 0 && (
+                            <span className="text-[10px] font-mono text-purple-800 bg-purple-100 px-2 py-0.5 rounded border border-purple-300" title={`Model Cadangan: ${item.fallbackModels.join(', ')}`}>
+                              +{item.fallbackModels.length} Cadangan: {item.fallbackModels.join(', ')}
+                            </span>
+                          )}
+                        </>
+                      )}
                       {item.latencyMs && <span>Respons: {item.latencyMs}ms</span>}
                       {item.lastUsed && (
                         <span>
@@ -325,7 +513,7 @@ export const SettingsPage: React.FC = () => {
                     <button
                       onClick={() => handleTestKey(item)}
                       disabled={testingId === item.id}
-                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors flex items-center gap-1.5"
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors flex items-center gap-1.5 cursor-pointer"
                     >
                       <RotateCw className={`w-3.5 h-3.5 ${testingId === item.id ? 'animate-spin' : ''}`} />
                       Test Key
@@ -333,7 +521,7 @@ export const SettingsPage: React.FC = () => {
 
                     <button
                       onClick={() => handleDeleteKey(item.id)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                       title="Hapus Key"
                     >
                       <Trash2 className="w-4 h-4" />

@@ -1,4 +1,4 @@
-import { GenerateArticleParams, PanduanImAuditReport } from '../../types';
+import { GenerateArticleParams, PanduanImAuditReport, ApiProvider } from '../../types';
 import { getSavedApiKeys } from '../../utils/storage';
 
 export interface GenerationResponse {
@@ -18,11 +18,18 @@ export interface GenerationResponse {
   wordCount: number;
   generationDurationMs: number;
   keyUsedName?: string;
+  providerUsed?: string;
+  modelUsedActual?: string;
   error?: string;
 }
 
 export async function generateArticleApi(params: GenerateArticleParams): Promise<GenerationResponse> {
-  const savedKeys = getSavedApiKeys().map((k) => k.key);
+  const savedKeys = getSavedApiKeys().map((k) => ({
+    key: k.key,
+    provider: k.provider || 'gemini',
+    model: k.model,
+    fallbackModels: k.fallbackModels,
+  }));
 
   let response: Response;
   try {
@@ -47,7 +54,7 @@ export async function generateArticleApi(params: GenerateArticleParams): Promise
       data = JSON.parse(rawText);
     } catch {
       if (rawText.toLowerCase().includes('the page c') || rawText.includes('<html') || rawText.includes('<!DOCTYPE')) {
-        data = { error: 'Server atau proxy jaringan mengalami error/timeout. Silakan periksa API Key Gemini Anda di menu Pengaturan.' };
+        data = { error: 'Server atau proxy jaringan mengalami error/timeout. Silakan periksa API Key (Gemini/OpenRouter) Anda di menu Pengaturan.' };
       } else {
         data = { error: rawText || 'Respon dari server tidak dapat diproses.' };
       }
@@ -57,20 +64,20 @@ export async function generateArticleApi(params: GenerateArticleParams): Promise
   }
 
   if (!response.ok) {
-    const errMsg = data?.error || 'Gagal menghasilkan artikel. Silakan periksa kembali API Key Gemini Anda di menu Pengaturan.';
+    const errMsg = data?.error || 'Gagal menghasilkan artikel. Silakan periksa kembali API Key (Gemini/OpenRouter) Anda di menu Pengaturan.';
     throw new Error(errMsg);
   }
 
   return data;
 }
 
-export async function testGeminiApiKeyApi(apiKey: string) {
+export async function testGeminiApiKeyApi(apiKey: string, provider: ApiProvider = 'gemini', model?: string) {
   const response = await fetch('/api/test-key', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ apiKey }),
+    body: JSON.stringify({ apiKey, provider, model }),
   });
 
   const data = await response.json();

@@ -1,4 +1,4 @@
-import { ArticleHistoryItem, ApiKeyConfig } from '../types';
+import { ArticleHistoryItem, ApiKeyConfig, ApiProvider } from '../types';
 
 const HISTORY_KEY = 'ai_human_articles_history';
 const KEYS_KEY = 'ai_human_gemini_api_keys';
@@ -79,24 +79,47 @@ export function clearArticleHistory(): void {
 export function getSavedApiKeys(): ApiKeyConfig[] {
   try {
     const raw = localStorage.getItem(KEYS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    // Backward compatibility: ensure every item has provider ('gemini' fallback) and fallbackModels if present
+    return parsed.map((item: any) => ({
+      ...item,
+      provider: item.provider || 'gemini',
+      model: item.provider === 'openrouter' ? (item.model || 'openai/gpt-4o-mini') : item.model,
+      fallbackModels: Array.isArray(item.fallbackModels) ? item.fallbackModels.filter((m: any) => typeof m === 'string' && m.trim()) : undefined,
+    }));
   } catch (err) {
     console.error('Error reading saved API keys:', err);
     return [];
   }
 }
 
-export function saveApiKey(key: string, name?: string): ApiKeyConfig[] {
+export function saveApiKey(
+  key: string,
+  name?: string,
+  provider: ApiProvider = 'gemini',
+  model?: string,
+  fallbackModels?: string[]
+): ApiKeyConfig[] {
   const keys = getSavedApiKeys();
   const trimmed = key.trim();
   if (!trimmed) return keys;
 
   const existingIdx = keys.findIndex((k) => k.key === trimmed);
   const maskedLabel = trimmed.length > 8 ? `${trimmed.substring(0, 4)}...${trimmed.substring(trimmed.length - 4)}` : 'Key';
+  const providerLabel = provider === 'openrouter' ? 'OpenRouter' : 'Gemini';
+  
   const newItem: ApiKeyConfig = {
     id: existingIdx >= 0 ? keys[existingIdx].id : `key_${Date.now()}`,
     key: trimmed,
-    name: name || `API Key (${maskedLabel})`,
+    name: name || `${providerLabel} Key (${maskedLabel})`,
+    provider,
+    model: provider === 'openrouter' ? (model?.trim() || 'openai/gpt-4o-mini') : undefined,
+    fallbackModels: provider === 'openrouter' && Array.isArray(fallbackModels) && fallbackModels.length > 0
+      ? fallbackModels.map(m => m.trim()).filter(Boolean)
+      : undefined,
     status: 'active',
     requestCount: existingIdx >= 0 ? keys[existingIdx].requestCount : 0,
     errorCount: existingIdx >= 0 ? keys[existingIdx].errorCount : 0,

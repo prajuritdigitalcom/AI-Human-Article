@@ -13,6 +13,9 @@ app.use(express.json({ limit: "10mb" }));
 interface KeyTracker {
   key: string;
   name: string;
+  provider: 'gemini' | 'openrouter';
+  model?: string;
+  fallbackModels?: string[];
   status: 'active' | 'cooldown' | 'invalid' | 'offline';
   cooldownUntil: number;
   requestCount: number;
@@ -24,52 +27,124 @@ interface KeyTracker {
 let roundRobinIndex = 0;
 const keyTrackersMap = new Map<string, KeyTracker>();
 
-function getEnvApiKeys(): string[] {
-  const keys: string[] = [];
-  if (process.env.GEMINI_API_KEY) keys.push(process.env.GEMINI_API_KEY);
-  if (process.env.GEMINI_API_KEY_1) keys.push(process.env.GEMINI_API_KEY_1);
-  if (process.env.GEMINI_API_KEY_2) keys.push(process.env.GEMINI_API_KEY_2);
-  if (process.env.GEMINI_API_KEY_3) keys.push(process.env.GEMINI_API_KEY_3);
-  
-  // Collect any other GEMINI_API_KEY_N env vars
-  Object.keys(process.env).forEach((k) => {
-    if (k.startsWith("GEMINI_API_KEY_") && !keys.includes(process.env[k]!)) {
-      if (process.env[k]) keys.push(process.env[k]!);
-    }
-  });
-  return Array.from(new Set(keys)).filter(Boolean);
+interface EnvKeyItem {
+  key: string;
+  provider: 'gemini' | 'openrouter';
+  model?: string;
+  fallbackModels?: string[];
 }
 
-function initOrGetKeyTracker(key: string, label?: string): KeyTracker {
+function getEnvApiKeys(): EnvKeyItem[] {
+  const items: EnvKeyItem[] = [];
+
+  // Gemini Keys
+  if (process.env.GEMINI_API_KEY) items.push({ key: process.env.GEMINI_API_KEY, provider: 'gemini' });
+  if (process.env.GEMINI_API_KEY_1) items.push({ key: process.env.GEMINI_API_KEY_1, provider: 'gemini' });
+  if (process.env.GEMINI_API_KEY_2) items.push({ key: process.env.GEMINI_API_KEY_2, provider: 'gemini' });
+  if (process.env.GEMINI_API_KEY_3) items.push({ key: process.env.GEMINI_API_KEY_3, provider: 'gemini' });
+
+  Object.keys(process.env).forEach((k) => {
+    if (k.startsWith("GEMINI_API_KEY_") && process.env[k]) {
+      if (!items.some((i) => i.key === process.env[k])) {
+        items.push({ key: process.env[k]!, provider: 'gemini' });
+      }
+    }
+  });
+
+  // OpenRouter Keys
+  const openrouterDefaultModel = process.env.OPENROUTER_DEFAULT_MODEL || 'openai/gpt-4o-mini';
+  if (process.env.OPENROUTER_API_KEY) items.push({ key: process.env.OPENROUTER_API_KEY, provider: 'openrouter', model: openrouterDefaultModel });
+  if (process.env.OPENROUTER_API_KEY_1) items.push({ key: process.env.OPENROUTER_API_KEY_1, provider: 'openrouter', model: openrouterDefaultModel });
+  if (process.env.OPENROUTER_API_KEY_2) items.push({ key: process.env.OPENROUTER_API_KEY_2, provider: 'openrouter', model: openrouterDefaultModel });
+
+  Object.keys(process.env).forEach((k) => {
+    if (k.startsWith("OPENROUTER_API_KEY_") && process.env[k]) {
+      if (!items.some((i) => i.key === process.env[k])) {
+        items.push({ key: process.env[k]!, provider: 'openrouter', model: openrouterDefaultModel });
+      }
+    }
+  });
+
+  return items.filter((i) => Boolean(i.key));
+}
+
+function initOrGetKeyTracker(
+  key: string,
+  label?: string,
+  provider: 'gemini' | 'openrouter' = 'gemini',
+  model?: string,
+  fallbackModels?: string[]
+): KeyTracker {
   if (!keyTrackersMap.has(key)) {
     const masked = key.length > 8 ? `${key.substring(0, 4)}...${key.substring(key.length - 4)}` : "Key";
+    const providerTag = provider === 'openrouter' ? 'OpenRouter' : 'Gemini';
     keyTrackersMap.set(key, {
       key,
-      name: label || `API Key (${masked})`,
+      name: label || `${providerTag} Key (${masked})`,
+      provider,
+      model: provider === 'openrouter' ? (model || 'openai/gpt-4o-mini') : undefined,
+      fallbackModels: provider === 'openrouter' ? fallbackModels : undefined,
       status: 'active',
       cooldownUntil: 0,
       requestCount: 0,
       errorCount: 0,
     });
+  } else {
+    const existing = keyTrackersMap.get(key)!;
+    existing.provider = provider;
+    if (model) existing.model = model;
+    if (fallbackModels) existing.fallbackModels = fallbackModels;
   }
   return keyTrackersMap.get(key)!;
 }
 
-function getAvailableKeys(customKeys?: string[]): KeyTracker[] {
-  const combined = Array.from(new Set([...(customKeys || []), ...getEnvApiKeys()])).filter(Boolean);
-  
+type CustomKeyInput = string | { key: string; provider?: 'gemini' | 'openrouter'; model?: string; fallbackModels?: string[] };
+
+function getAvailableKeys(customKeys?: CustomKeyInput[]): KeyTracker[] {
+  const normalizedCustom: EnvKeyItem[] = [];
+  if (Array.isArray(customKeys)) {
+    for (const c of customKeys) {
+      if (typeof c === 'string' && c.trim()) {
+        normalizedCustom.push({ key: c.trim(), provider: 'gemini' });
+      } else if (c && typeof c === 'object' && c.key && c.key.trim()) {
+        normalizedCustom.push({
+          key: c.key.trim(),
+          provider: c.provider || 'gemini',
+          model: c.model,
+          fallbackModels: Array.isArray(c.fallbackModels) ? c.fallbackModels : undefined,
+        });
+      }
+    }
+  }
+
+  const envKeys = getEnvApiKeys();
+  const combined: EnvKeyItem[] = [];
+  const seenKeys = new Set<string>();
+
+  for (const item of [...normalizedCustom, ...envKeys]) {
+    if (!seenKeys.has(item.key)) {
+      seenKeys.add(item.key);
+      combined.push(item);
+    }
+  }
+
   const now = Date.now();
   const trackers: KeyTracker[] = [];
 
   for (let i = 0; i < combined.length; i++) {
-    const k = combined[i];
-    const tracker = initOrGetKeyTracker(k, `API Key #${i + 1}`);
-    
-    // Check if cooldown expired
+    const item = combined[i];
+    const tracker = initOrGetKeyTracker(
+      item.key,
+      `${item.provider === 'openrouter' ? 'OpenRouter' : 'Gemini'} Key #${i + 1}`,
+      item.provider,
+      item.model,
+      item.fallbackModels
+    );
+
     if (tracker.status === 'cooldown' && tracker.cooldownUntil <= now) {
       tracker.status = 'active';
     }
-    
+
     trackers.push(tracker);
   }
 
@@ -485,44 +560,84 @@ app.get("/api/health", (req, res) => {
 
 // Test API Key
 app.post("/api/test-key", async (req, res) => {
-  const { apiKey } = req.body;
+  const { apiKey, provider = 'gemini', model } = req.body;
   if (!apiKey || typeof apiKey !== "string") {
     return res.status(400).json({ status: "invalid", message: "API key is required" });
   }
 
+  const cleanKey = apiKey.trim();
+  const targetProvider: 'gemini' | 'openrouter' = provider === 'openrouter' ? 'openrouter' : 'gemini';
+  const targetModel = model || (targetProvider === 'openrouter' ? 'openai/gpt-4o-mini' : undefined);
   const startTime = Date.now();
+
   try {
-    const ai = new GoogleGenAI({
-      apiKey: apiKey.trim(),
-      httpOptions: {
-        headers: { "User-Agent": "aistudio-build" },
-      },
-    });
+    if (targetProvider === 'openrouter') {
+      const openRouterRes = await fetch("https://openrouter.ai/api/v1/key", {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${cleanKey}`,
+          "HTTP-Referer": "https://aistudio.build",
+          "X-Title": "AI Human Article Generator",
+        },
+      });
 
-    const response = await ai.models.generateContent({
-      model: "gemini-flash-latest",
-      contents: "Reply with the word 'OK' to confirm API status.",
-    });
+      const latencyMs = Date.now() - startTime;
+      const tracker = initOrGetKeyTracker(cleanKey, undefined, 'openrouter', targetModel);
+      tracker.latencyMs = latencyMs;
+      tracker.lastUsed = new Date().toISOString();
 
-    const latencyMs = Date.now() - startTime;
-    const tracker = initOrGetKeyTracker(apiKey.trim());
-    tracker.status = 'active';
-    tracker.latencyMs = latencyMs;
-    tracker.lastUsed = new Date().toISOString();
+      if (openRouterRes.ok) {
+        tracker.status = 'active';
+        return res.json({
+          status: "active",
+          message: `OpenRouter API Key valid & active (Model: ${targetModel})`,
+          latencyMs,
+          responseSample: "OK",
+        });
+      } else if (openRouterRes.status === 401) {
+        tracker.status = 'invalid';
+        return res.status(401).json({ status: "invalid", message: "Invalid OpenRouter API Key (401 Unauthorized)", latencyMs });
+      } else if (openRouterRes.status === 429) {
+        tracker.status = 'cooldown';
+        tracker.cooldownUntil = Date.now() + 60000;
+        return res.status(429).json({ status: "cooldown", message: "OpenRouter Quota Exceeded (429 Cooldown)", latencyMs });
+      } else {
+        tracker.status = 'offline';
+        return res.status(500).json({ status: "offline", message: `OpenRouter error status ${openRouterRes.status}`, latencyMs });
+      }
+    } else {
+      const ai = new GoogleGenAI({
+        apiKey: cleanKey,
+        httpOptions: {
+          headers: { "User-Agent": "aistudio-build" },
+        },
+      });
 
-    return res.json({
-      status: "active",
-      message: "API Key valid and active",
-      latencyMs,
-      responseSample: response.text ? response.text.trim() : "OK"
-    });
+      const response = await ai.models.generateContent({
+        model: "gemini-flash-latest",
+        contents: "Reply with the word 'OK' to confirm API status.",
+      });
+
+      const latencyMs = Date.now() - startTime;
+      const tracker = initOrGetKeyTracker(cleanKey, undefined, 'gemini');
+      tracker.status = 'active';
+      tracker.latencyMs = latencyMs;
+      tracker.lastUsed = new Date().toISOString();
+
+      return res.json({
+        status: "active",
+        message: "Gemini API Key valid and active",
+        latencyMs,
+        responseSample: response.text ? response.text.trim() : "OK"
+      });
+    }
   } catch (error: any) {
     const latencyMs = Date.now() - startTime;
     const errMsg = error?.message || String(error);
     const is401 = errMsg.includes("401") || errMsg.toLowerCase().includes("unauthorized") || errMsg.toLowerCase().includes("invalid api key");
     const is429 = errMsg.includes("429") || errMsg.toLowerCase().includes("quota") || errMsg.toLowerCase().includes("resource exhausted");
 
-    const tracker = initOrGetKeyTracker(apiKey.trim());
+    const tracker = initOrGetKeyTracker(cleanKey, undefined, targetProvider, targetModel);
     tracker.errorCount += 1;
     tracker.latencyMs = latencyMs;
 
@@ -676,7 +791,7 @@ app.post("/api/generate", async (req, res) => {
 
   if (allKeyTrackers.length === 0) {
     return res.status(400).json({
-      error: "API Key Gemini belum dimasukkan. Silakan masukan minimal 1 API Key Gemini di menu Pengaturan (Settings) agar dapat melakukan generate artikel."
+      error: "API Key belum dimasukkan. Silakan masukkan minimal 1 API Key (Gemini atau OpenRouter) di menu Pengaturan (Settings) agar dapat melakukan generate artikel."
     });
   }
 
@@ -825,7 +940,7 @@ CRITICAL REQUIREMENT: Ensure the article in "articleHtml" is comprehensive, high
     const selectedTracker = selectNextActiveKey(allKeyTrackers);
 
     if (!selectedTracker) {
-      lastErrorMsg = "Semua Gemini API Key saat ini dalam status cooldown atau invalid.";
+      lastErrorMsg = "Semua API Key (Gemini / OpenRouter) saat ini dalam status cooldown atau invalid.";
       break;
     }
 
@@ -834,32 +949,79 @@ CRITICAL REQUIREMENT: Ensure the article in "articleHtml" is comprehensive, high
     selectedTracker.lastUsed = new Date().toISOString();
 
     try {
-      const ai = new GoogleGenAI({
-        apiKey: selectedTracker.key.trim(),
-        httpOptions: {
-          headers: { "User-Agent": "aistudio-build" },
-        },
-      });
+      let responseText = "";
+      let actualModelUsed: string | undefined = undefined;
 
-      // Primary model target gemini-flash-latest with boosted temperature for AI detection bypass
-      const response = await ai.models.generateContent({
-        model: "gemini-flash-latest",
-        contents: [
-          { role: "user", parts: [{ text: userPrompt }] }
-        ],
-        config: {
-          systemInstruction: systemPrompt,
+      if (selectedTracker.provider === 'openrouter') {
+        const primaryModel = selectedTracker.model || "openai/gpt-4o-mini";
+        const fallbackList = Array.isArray(selectedTracker.fallbackModels) ? selectedTracker.fallbackModels : [];
+        const modelChain = [primaryModel, ...fallbackList].filter((m, idx, self) => Boolean(m) && self.indexOf(m) === idx);
+
+        const requestBody: any = {
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
           temperature: 0.98,
-          topP: 0.95,
-          responseMimeType: "application/json",
-        },
-      });
+          top_p: 0.95,
+          response_format: { type: "json_object" },
+        };
+
+        if (modelChain.length > 1) {
+          requestBody.models = modelChain; // OpenRouter fallback model array feature
+        } else {
+          requestBody.model = modelChain[0] || "openai/gpt-4o-mini";
+        }
+
+        const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${selectedTracker.key.trim()}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://aistudio.build",
+            "X-Title": "AI Human Article Generator",
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        if (!openRouterRes.ok) {
+          const errText = await openRouterRes.text();
+          throw new Error(`OpenRouter HTTP ${openRouterRes.status}: ${errText}`);
+        }
+
+        const orData = await openRouterRes.json();
+        responseText = orData.choices?.[0]?.message?.content || "";
+        actualModelUsed = orData.model || modelChain[0];
+      } else {
+        actualModelUsed = "gemini-flash-latest";
+        const ai = new GoogleGenAI({
+          apiKey: selectedTracker.key.trim(),
+          httpOptions: {
+            headers: { "User-Agent": "aistudio-build" },
+          },
+        });
+
+        // Primary model target gemini-flash-latest with boosted temperature for AI detection bypass
+        const response = await ai.models.generateContent({
+          model: "gemini-flash-latest",
+          contents: [
+            { role: "user", parts: [{ text: userPrompt }] }
+          ],
+          config: {
+            systemInstruction: systemPrompt,
+            temperature: 0.98,
+            topP: 0.95,
+            responseMimeType: "application/json",
+          },
+        });
+
+        responseText = response.text || "";
+      }
 
       const latencyMs = Date.now() - startTime;
       selectedTracker.latencyMs = latencyMs;
       selectedTracker.status = 'active';
 
-      let responseText = response.text || "";
       responseText = responseText.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/g, "").trim();
 
       let title = keyword.trim();
@@ -968,6 +1130,8 @@ CRITICAL REQUIREMENT: Ensure the article in "articleHtml" is comprehensive, high
         wordCount,
         generationDurationMs: latencyMs,
         keyUsedName: selectedTracker.name,
+        providerUsed: selectedTracker.provider,
+        modelUsedActual: actualModelUsed || selectedTracker.model,
       });
 
     } catch (error: any) {
@@ -994,7 +1158,7 @@ CRITICAL REQUIREMENT: Ensure the article in "articleHtml" is comprehensive, high
   }
 
   return res.status(400).json({
-    error: `Semua Gemini API Key yang terdaftar sedang mengalami limit kuota (429) atau tidak valid (${attemptCount} percobaan gagal). Silakan tambahkan API Key baru atau periksa status key Anda di menu Pengaturan.`
+    error: `Semua API Key (Gemini / OpenRouter) yang terdaftar sedang mengalami limit kuota (429) atau tidak valid (${attemptCount} percobaan gagal). Silakan tambahkan API Key baru atau periksa status key Anda di menu Pengaturan.`
   });
 });
 

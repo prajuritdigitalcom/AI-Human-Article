@@ -7,9 +7,18 @@ export type WritingStyle =
   | 'Sales' 
   | 'Company Profile';
 
+export type ApiProvider = 'gemini' | 'openrouter';
+
 export interface InternalLinkItem {
   anchorText: string;
   url: string;
+}
+
+export interface CustomApiKeyPayload {
+  key: string;
+  provider: ApiProvider;
+  model?: string;
+  fallbackModels?: string[];
 }
 
 export interface GenerateArticleParams {
@@ -18,13 +27,16 @@ export interface GenerateArticleParams {
   referenceInfo?: string;
   imageLinks?: string[];
   internalLinks?: InternalLinkItem[];
-  customApiKeys?: string[];
+  customApiKeys?: (string | CustomApiKeyPayload)[];
 }
 
 export interface ApiKeyConfig {
   id: string;
   key: string; // Stored masked or encrypted in local UI
   name: string;
+  provider: ApiProvider;
+  model?: string;
+  fallbackModels?: string[]; // Model cadangan opsional untuk OpenRouter
   status: 'active' | 'cooldown' | 'invalid' | 'offline';
   latencyMs?: number;
   lastUsed?: string;
@@ -67,6 +79,8 @@ export interface ArticleHistoryItem {
   categories?: string[];
   tags?: string[];
   keyUsed?: string;
+  providerUsed?: string;
+  modelUsedActual?: string;
   generationDurationMs?: number;
 }
 
