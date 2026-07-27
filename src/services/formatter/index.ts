@@ -147,10 +147,62 @@ export function auditAndSanitizeMdnHtml(html: string): MdnHtmlAuditResult {
   };
 }
 
+export function ensureImageAtVeryTop(html: string, imgUrl?: string, imgAlt?: string): string {
+  if (!html) return html;
+  
+  let cleaned = html.trim();
+
+  // If imgUrl is provided, ensure it is positioned at the very top
+  if (imgUrl && imgUrl.trim()) {
+    const targetUrl = imgUrl.trim();
+    const targetAlt = imgAlt ? imgAlt.trim() : 'Gambar Artikel';
+    const topImgTag = `<p><img src="${targetUrl}" alt="${targetAlt}" class="article-image my-6 rounded-xl w-full object-cover max-h-[450px]" /></p>`;
+
+    // Check if html already starts with an image
+    const startsWithImg = /^\s*(?:<p[^>]*>|<figure[^>]*>)?\s*<img[^>]+>/i.test(cleaned);
+    if (!startsWithImg) {
+      // Remove any duplicate img tag with the same src from deeper in the article
+      const escapeRegExp = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const duplicateImgRegex = new RegExp(`(?:<p[^>]*>|<figure[^>]*>)?\\s*<img[^>]+src=["']${escapeRegExp(targetUrl)}["'][^>]*>(?:\\s*<\\/p>|\\s*<\\/figure>)?`, 'gi');
+      cleaned = cleaned.replace(duplicateImgRegex, '').trim();
+
+      // If html starts with <h1> or <h2>, place image immediately after the title
+      const headingMatch = cleaned.match(/^(\s*<h[12][^>]*>[\s\S]*?<\/h[12]>\s*)/i);
+      if (headingMatch) {
+        const heading = headingMatch[1];
+        const rest = cleaned.substring(heading.length).trim();
+        cleaned = `${heading}\n${topImgTag}\n${rest}`;
+      } else {
+        cleaned = `${topImgTag}\n${cleaned}`;
+      }
+    }
+  } else {
+    // If no imgUrl provided, check if there is any <img> tag inside html, move the first <img> to the very top
+    const firstImgMatch = cleaned.match(/(?:<p[^>]*>|<figure[^>]*>)?\s*<img[^>]+src=["']([^"']+)["'][^>]*>(?:\s*<\/p>|\s*<\/figure>)?/i);
+    if (firstImgMatch && !/^\s*(?:<p[^>]*>|<figure[^>]*>)?\s*<img[^>]+>/i.test(cleaned)) {
+      const fullImgBlock = firstImgMatch[0];
+      // Remove firstImgBlock from current position
+      cleaned = cleaned.replace(fullImgBlock, '').trim();
+      // Place it at the top or right after heading
+      const headingMatch = cleaned.match(/^(\s*<h[12][^>]*>[\s\S]*?<\/h[12]>\s*)/i);
+      if (headingMatch) {
+        const heading = headingMatch[1];
+        const rest = cleaned.substring(heading.length).trim();
+        cleaned = `${heading}\n${fullImgBlock}\n${rest}`;
+      } else {
+        cleaned = `${fullImgBlock}\n${cleaned}`;
+      }
+    }
+  }
+
+  return cleaned;
+}
+
 export function getRawWordpressHtml(html: string): string {
   if (!html) return '';
   const audited = auditAndSanitizeMdnHtml(html);
   let cleaned = audited.sanitizedHtml;
+  cleaned = ensureImageAtVeryTop(cleaned);
   // Remove tailwind utility classes if injected previously
   cleaned = cleaned.replace(/\s*class="[^"]*"/gi, '');
   return cleaned;
@@ -160,6 +212,7 @@ export function cleanWordPressHtml(html: string): string {
   if (!html) return '';
   const audited = auditAndSanitizeMdnHtml(html);
   let cleaned = audited.sanitizedHtml;
+  cleaned = ensureImageAtVeryTop(cleaned);
 
   // Ensure headings have proper spacing and clean classes for preview rendering
   cleaned = cleaned.replace(/<h1([^>]*)>/gi, '<h1 class="text-3xl font-bold my-4 text-gray-900">');

@@ -902,23 +902,23 @@ app.post("/api/generate", async (req, res) => {
     const cleanedLinks = imageLinks.filter(l => l && l.trim().startsWith("http"));
     if (cleanedLinks.length > 0) {
       imageInstructions = `
-\n[IMAGE EMBEDDING & ALT TEXT DIRECTIVE]:
+\n[IMAGE EMBEDDING & ALT TEXT DIRECTIVE - TOP PLACEMENT MANDATE]:
 The user provided custom image URLs:
 ${cleanedLinks.map((url, idx) => `Image ${idx + 1}: ${url.trim()}`).join("\n")}
 1. Set "featuredImageUrl" to the first image URL: "${cleanedLinks[0]}".
 2. Create a compelling, descriptive, SEO-optimized ALT text for "featuredImageAlt" incorporating "${keyword.trim()}".
-3. Insert these custom images into relevant H2 sections as clean HTML <img src="URL" alt="Descriptive SEO alt text related to '${keyword.trim()}'" class="article-image my-6 rounded-xl w-full object-cover max-h-[450px]" /> inside "articleHtml".
+3. YOU MUST INSERT THE PRIMARY IMAGE AT THE VERY TOP OF "articleHtml" (at the start of the content, before or immediately after the main title/heading), using clean HTML <img src="URL" alt="Descriptive SEO alt text related to '${keyword.trim()}'" class="article-image my-6 rounded-xl w-full object-cover max-h-[450px]" /> inside "articleHtml".
 `;
     }
   }
 
   if (!imageInstructions) {
     imageInstructions = `
-\n[UNSPLASH FEATURED & CONTENT IMAGE DIRECTIVE]:
+\n[UNSPLASH FEATURED & CONTENT IMAGE DIRECTIVE - TOP PLACEMENT MANDATE]:
 The user did NOT provide custom image URLs. You MUST auto-generate image URLs from Unsplash (https://unsplash.com):
 1. Select/generate a high-quality Unsplash photo URL for "featuredImageUrl" (e.g. "https://images.unsplash.com/photo-1542744094-3a31b272c365?auto=format&fit=crop&w=1200&q=80" or relevant Unsplash photo URL for '${keyword.trim()}').
 2. Write a highly descriptive, natural, SEO-optimized ALT text for "featuredImageAlt" that describes what is shown in the photo and naturally includes '${keyword.trim()}'.
-3. Inside "articleHtml", embed the featured image or 1-2 relevant Unsplash images into the content using clean HTML <img src="..." alt="Descriptive ALT text with target keyword" class="article-image my-6 rounded-xl w-full object-cover max-h-[450px]" />.
+3. YOU MUST INSERT THIS MAIN IMAGE AT THE VERY TOP OF "articleHtml" (at the start of the content, before or immediately after the main heading) using clean HTML <img src="..." alt="Descriptive ALT text with target keyword" class="article-image my-6 rounded-xl w-full object-cover max-h-[450px]" />.
 `;
   }
 
@@ -1211,6 +1211,29 @@ CRITICAL REQUIREMENT: Ensure the article in "articleHtml" is thoroughly written 
       }
       if (!featuredImageAlt) {
         featuredImageAlt = `Gambar ilustrasi SEO untuk ${title || keyword}`;
+      }
+
+      // Enforce image placement at the very top of the article HTML
+      if (featuredImageUrl && rawHtml) {
+        let cleanedHtml = rawHtml.trim();
+        const topImgTag = `<p><img src="${featuredImageUrl}" alt="${featuredImageAlt}" class="article-image my-6 rounded-xl w-full object-cover max-h-[450px]" /></p>`;
+        const startsWithImg = /^\s*(?:<p[^>]*>|<figure[^>]*>)?\s*<img[^>]+>/i.test(cleanedHtml);
+        
+        if (!startsWithImg) {
+          const escapeRegExp = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const duplicateImgRegex = new RegExp(`(?:<p[^>]*>|<figure[^>]*>)?\\s*<img[^>]+src=["']${escapeRegExp(featuredImageUrl)}["'][^>]*>(?:\\s*<\\/p>|\\s*<\\/figure>)?`, 'gi');
+          cleanedHtml = cleanedHtml.replace(duplicateImgRegex, '').trim();
+
+          const headingMatch = cleanedHtml.match(/^(\s*<h[12][^>]*>[\s\S]*?<\/h[12]>\s*)/i);
+          if (headingMatch) {
+            const heading = headingMatch[1];
+            const rest = cleanedHtml.substring(heading.length).trim();
+            cleanedHtml = `${heading}\n${topImgTag}\n${rest}`;
+          } else {
+            cleanedHtml = `${topImgTag}\n${cleanedHtml}`;
+          }
+          rawHtml = cleanedHtml;
+        }
       }
 
       // Run automated PanduanIM Writing & E-E-A-T Audit
