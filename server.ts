@@ -948,7 +948,10 @@ app.post("/api/wordpress/test", async (req, res) => {
 
         let detailAdvice = `Gagal otentikasi (Status ${userRes.status}: ${userData?.message || 'Unauthorized'}). `;
         if (userRes.status === 401) {
-          detailAdvice += `Application Password atau Username tidak cocok, atau server WordPress (Apache/LiteSpeed/Nginx) memotong header Authorization Basic. Solusi: Tambahkan 'CGIPassAuth On' dan 'SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1' pada file .htaccess di server WordPress Anda.`;
+          detailAdvice += `\n\n📌 PENYEBAB UTAMA & CARA PERBAIKAN:\n` +
+            `1. PERIKSA USERNAME (SANGAT PENTING): Diisi "${wpUsername.trim()}". Pastikan ini adalah USERNAME LOGIN WP ADMIN (misal: modernsolidwood), BUKAN Nama Tampilan / Display Name ("Admin Sauna Kayu"). WordPress REST API hanya menerima Username Login atau Email!\n` +
+            `2. PERIKSA TYPO DI .htaccess: Di file .htaccess server Anda, hapus karakter '$' di awal baris pertama. Harusnya 'SetEnvIf' (tanpa tanda '$' di depan).\n` +
+            `3. PERIKSA APPLICATION PASSWORD: Pastikan Application Password dibuat di WP Admin -> Users -> Profile -> Application Passwords dan tidak ada spasi yang terlewat.`;
         } else if (userRes.status === 403) {
           detailAdvice += `User "${wpUsername}" tidak memiliki izin REST API / posting. Pastikan role user adalah Administrator atau Editor di WP Admin.`;
         }
