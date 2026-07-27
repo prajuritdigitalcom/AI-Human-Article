@@ -326,16 +326,17 @@ function auditPanduanIMStyle(html: string, wordCount: number, title: string, key
       : 'Belum terdeteksi kata sapaan langsung praktisi ("saya"/"anda").'
   });
 
-  // 3. Check Absence of Em-dashes and En-dashes
-  const hasEmDashes = /[—–]|--/.test(html);
+  // 3. Check Absence of Em-dashes in Body Text
+  const bodyParagraphsText = (html.match(/<p>[\s\S]*?<\/p>/gi) || []).join(' ');
+  const hasEmDashes = /[—]|--/.test(bodyParagraphsText);
   checks.push({
     id: 'em_dash',
-    label: 'Steril dari Em-Dash & Ciri Khas AI',
+    label: 'Steril dari Em-Dash (—) di Teks Paragraf Isi',
     category: 'Anti-AI Burstiness',
     passed: !hasEmDashes,
     detail: !hasEmDashes 
-      ? '100% bebas dari em-dash (—) dan simbol penghubung ala AI.' 
-      : 'Terdeteksi simbol em-dash yang berpotensi memicu detektor AI.'
+      ? '100% bebas dari em-dash (—) di dalam paragraf isi.' 
+      : 'Terdeteksi simbol em-dash di paragraf isi yang berpotensi memicu detektor AI.'
   });
 
   // 4. Check Absence of Robotic AI Connectors
@@ -351,16 +352,16 @@ function auditPanduanIMStyle(html: string, wordCount: number, title: string, key
       : `Ditemukan frasa klise AI: "${foundRobotic.join(', ')}".`
   });
 
-  // 5. Check Depth & Word Count ("Tuntas & Padat" - 1000+ words, ideally 1200-1500+)
-  const isDeepContent = wordCount >= 1000;
+  // 5. Check Depth & Word Count ("Tuntas & Padat" Sesuai Kebutuhan Topik - min 600+ kata)
+  const isDeepContent = wordCount >= 600;
   checks.push({
     id: 'content_depth',
-    label: 'Kedalaman Artikel (Tuntas & Padat 1000+ Kata)',
+    label: 'Kedalaman Artikel (Tuntas & Padat Sesuai Topik)',
     category: 'Kedalaman & E-E-A-T',
     passed: isDeepContent,
     detail: isDeepContent
-      ? `Panjang artikel mencapai ${wordCount} kata (Syarat Tuntas & Padat PanduanIM: >= 1000 kata).`
-      : `Panjang artikel (${wordCount} kata) masih di bawah standar Tuntas & Padat PanduanIM (1000+ kata).`
+      ? `Panjang artikel mencapai ${wordCount} kata (Tuntas & Padat sesuai kebutuhan topik).`
+      : `Panjang artikel (${wordCount} kata) masih terlalu ringkas. Disarankan dibahas lebih tuntas.`
   });
 
   // 6. Check Structure: Step-by-Step / Mindset Shifts ("Lupakan X")
@@ -375,16 +376,16 @@ function auditPanduanIMStyle(html: string, wordCount: number, title: string, key
       : 'Belum memuat instruksi eksekusi langkah demi langkah.'
   });
 
-  // 7. Check Real-world Scenarios / Grounded Analogies ("Contoh", "Bayangkan", "Ibarat")
-  const hasRealScenario = /contoh|bayangkan|skenario|misalkan|studi kasus|ibarat|budi|rina/i.test(html);
+  // 7. Check Real-world Scenarios / Grounded Analogies / Personal POV
+  const hasRealScenario = /contoh|bayangkan|skenario|misalkan|studi kasus|ibarat|budi|rina|saya|anda/i.test(html);
   checks.push({
     id: 'real_scenario',
-    label: 'Analogi Membumi & Skenario Riil Lapangan',
+    label: 'Analogi Membumi & Skenario Riil Lapangan / Pengalaman',
     category: 'Kedalaman & E-E-A-T',
     passed: hasRealScenario,
     detail: hasRealScenario
-      ? 'Dilengkapi analogi budaya membumi atau skenario nyata (tokoh fiktif/studi kasus).'
-      : 'Belum memuat contoh skenario riil lapangan.'
+      ? 'Dilengkapi analogi membumi, pengalaman praktisi, atau skenario nyata.'
+      : 'Belum memuat contoh skenario riil atau analogi membumi.'
   });
 
   // 8. Check Short Paragraph Burstiness & Rhythm
@@ -418,16 +419,16 @@ function auditPanduanIMStyle(html: string, wordCount: number, title: string, key
       : 'Terdeteksi judul "Kesimpulan" kaku. Disarankan diganti judul berorientasi aksi.'
   });
 
-  // 10. Check FAQ Section
-  const hasFAQ = /faq|pertanyaan|sering ditanyakan|h3/i.test(html) && /<h[23][^>]*>[\s\S]*?(faq|pertanyaan)/i.test(html);
+  // 10. Check FAQ Section (Optional & Contextual in Engine v4.0.0)
+  const hasFAQ = /faq|pertanyaan|sering ditanyakan/i.test(html) && /<h[23][^>]*>[\s\S]*?(faq|pertanyaan)/i.test(html);
   checks.push({
     id: 'faq_section',
-    label: 'Seksi FAQ Praktisi (Tuntas Menjawab Pertanyaan)',
+    label: 'Seksi FAQ Praktisi (Opsional & Kontekstual)',
     category: 'Kedalaman & E-E-A-T',
-    passed: hasFAQ,
+    passed: true, // FAQ is optional & contextual per PRD Engine v4.0.0
     detail: hasFAQ
-      ? 'Dilengkapi seksi FAQ praktisi untuk meng-cover search intent pengguna.'
-      : 'Belum memuat seksi FAQ praktisi.'
+      ? 'Dilengkapi seksi FAQ praktisi kontekstual.'
+      : 'Seksi FAQ opsional (tidak wajib jika isi utama sudah menjawab topik secara tuntas).'
   });
 
   // 11. Check Bolding & Italics Usage for Visual Scannability
@@ -442,21 +443,24 @@ function auditPanduanIMStyle(html: string, wordCount: number, title: string, key
       : 'Penekanan visual (bold/italic) masih minim.'
   });
 
-  // 12. Check Explicit Closing Section (Summary & CTA Wajib Setelah FAQ)
+  // 12. Check Explicit Closing Section
   const faqIdx = html.search(/<h[23][^>]*>[\s\S]*?(faq|pertanyaan)/i);
   let hasClosingAfterFaq = true;
   if (faqIdx !== -1) {
     const afterFaqContent = html.substring(faqIdx);
-    hasClosingAfterFaq = /langkah|aksi|sekarang|checklist|mulai|eksekusi|selanjutnya|siap|coba|ringkasan|hubungi/i.test(afterFaqContent);
+    hasClosingAfterFaq = /langkah|aksi|sekarang|checklist|mulai|eksekusi|selanjutnya|siap|coba|ringkasan|hubungi|tugas/i.test(afterFaqContent);
+  } else {
+    // If no FAQ, ensure there's a clear closing at the end of the article
+    hasClosingAfterFaq = /langkah|aksi|sekarang|checklist|mulai|eksekusi|selanjutnya|siap|coba|ringkasan|hubungi|tugas/i.test(html);
   }
   checks.push({
     id: 'closing_after_faq',
-    label: 'Penutup Eksplisit (Ringkasan & CTA Wajib Setelah FAQ)',
+    label: 'Penutup Eksplisit (Ringkasan & Aksi Nyata)',
     category: 'Struktur & SEO',
     passed: hasClosingAfterFaq,
     detail: hasClosingAfterFaq
-      ? 'Memuat ringkasan & CTA eksplisit yang menutup artikel secara utuh setelah seksi FAQ.'
-      : 'Artikel terhenti di jawaban FAQ terakhir tanpa ringkasan & CTA penutup yang jelas.'
+      ? 'Memuat ringkasan & ajakan aksi konkret yang menutup artikel secara utuh.'
+      : 'Artikel terhenti tanpa ringkasan & ajakan aksi penutup yang jelas.'
   });
 
   // 13. Check Rhetorical Questions in Main Body (excluding FAQ titles)
@@ -834,19 +838,20 @@ ${validLinks.map(l => `- Anchor Text: "${l.anchorText.trim()}" -> URL: ${l.url.t
 `;
     }
   }
+
   // Build full system and user prompt
   const systemPrompt = `You are "PIM-Writer", the master writing engine that 100% replicates the signature writing style, structure, and tone of PanduanIM.com (Darmawan)—Indonesia's premier internet marketing and SEO masterclass blog.
 
 [HUMANIZER RULES & STYLE GUIDE]:
 ${humanizerRules}
 
-[PANDUANIM (DARMAWAN STYLE) - COMPLETE ENGINE BLUEPRINT]:
+[PANDUANIM (DARMAWAN STYLE) - COMPLETE ENGINE BLUEPRINT v4.0.0]:
 
 1. PERSONA & PRONOUNS:
    - Write as an experienced, direct, blak-blakan practitioner/mentor—NOT a neutral encyclopedia or textbook.
    - Author POV: Use "saya" for first-person.
    - Reader Address: Address the reader as "anda". Follow standard capitalization rules: write "Anda" with CAPITAL A if it is the FIRST word in a sentence or heading, but use lowercase "anda" when it is in the MIDDLE of a sentence (e.g., "...pada kayu FJL. Anda bisa..." vs "...cara agar bisnis anda..."). NEVER use "kamu", "lo/gue", or informal slang.
-   - Tone: Confident, bold, slightly provocative at the start, yet warm and step-by-step guiding.
+   - Tone: Confident, bold, slightly provocative at the start, yet warm and step-by-step guiding. Interjections like "nggak", "emangnya", "gila kan?", "ya kan?" are natural when used sparingly.
 
 2. MANDATORY MACRO-STRUCTURE:
    a) **HOOK PEMBUKA** (1 short paragraph, 1-3 sentences):
@@ -861,23 +866,24 @@ ${humanizerRules}
       - Highlight the gap between expectations vs reality.
       - End with a standalone 1-word or 1-phrase paragraph for dramatic pause ("Gagal.", "Sia-sia.", "Ternyata tidak.", "Nol besar.").
    c) **JANJI / PREVIEW SOLUSI** (1-2 paragraphs):
-      - Introduce the solution framework clearly. If part of a series, show roadmap with 1-2 sentence summaries per chapter ("1. [Judul Bab] — [Ringkasan 1-2 kalimat]").
-   d) **ISI UTAMA** (4-5 core strategic H2 sections):
-      - H2 Headings: Organic, descriptive, non-numbered H2 titles (e.g., "<h2>Mengapa Strategi [Topik] Anda Selalu Stagnan</h2>", "<h2>Prinsip Utama yang Wajib Anda Kuasai</h2>"). NEVER prefix H2s with numbers like "1.", "2."!
+      - Introduce the solution framework clearly. If part of a series, show roadmap with 1-2 sentence summaries per chapter.
+   d) **ISI UTAMA** (4-6 core strategic H2 sections):
+      - H2 HEADINGS NUMBERING MUST MATCH TITLE PROMISE:
+        * If title promises a number (e.g., "7 Cara...", "5 Kesalahan...", "9 Tahap..."), H2s MUST be numbered ("1.", "#1", or "Langkah 1 – ...") and the count MUST match the title number exactly!
+        * If title is conceptual/narrative ("Apa itu X", "Mengapa X Penting"), H2s are organic WITHOUT numbers (e.g. "<h2>Mengapa [X] Penting untuk [Y]?</h2>").
       - Concept Explanations: Always use the "mitos-dulu-baru-fakta" pattern (explain common misconception first, then the true reality).
-      - BLOCKQUOTE DEFINITIONS: MANDATORY to define key concepts inside a blockquote:
-        <blockquote><strong>[Istilah]</strong> adalah [definisi singkat, 1-2 kalimat].</blockquote>
-      - MINI-STORY / ANALOGY: MANDATORY to include at least 1 mini-story or analogy featuring fictional characters like "Budi" or "Rina" to illustrate a real-world user scenario.
+      - BLOCKQUOTE (3 Allowed Functions): Use blockquote &lt;blockquote&gt; for (1) formal definition of key concepts, (2) quoting old rules/myths to debunk, or (3) illustrative example sentences.
+      - CONTOH / ILUSTRASI: Include at least 1 illustration per article. Choose from 3 options: (a) personal experience of author ("saya pernah..."), (b) hypothetical scenario to reader ("anggaplah anda..."), or (c) dissecting real/flawed examples point-by-point. Do NOT force fictional character names like Budi/Rina.
       - LIST TYPES: Use numbered lists (<ol><li>) for sequential steps, execution checklists, decision stages, and process workflows where sequence matters. Use bullet lists (<ul><li>) ONLY for non-sequential options or categories.
+      - RHETORICAL QUESTIONS: Include at least 1 rhetorical question per H2 section as paragraph connectors.
       - Section Summary: Close each H2 section with 1 short wrap-up sentence before moving to the next section.
-   e) **SEKSI FAQ PRAKTISI & ATURAN PARAGRAF FAQ**:
-      - Include 3-4 real practitioner FAQ items answered with deep, practical expertise.
-      - FAQ PARAGRAF PENDEK (MANDATORY): Section FAQ MUST strictly obey ultra-short paragraph rules! NEVER answer a FAQ question in 1 dense block paragraph (> 60 words). Break every FAQ answer into 2-3 ultra-short paragraphs (max 3-4 lines / ~20 words per line) or bullet lists.
-   f) **RINGKASAN & PENUTUP (WAJIB ADA & MANDATORY AFTER FAQ)**:
-      - This closing section MUST appear at the very end of the article, AFTER the FAQ section! FAQ is NOT a replacement for the conclusion — always add a summary + CTA AFTER the FAQ section. Never let the article end abruptly on a FAQ answer.
-      - Start with reader validation ("Sekarang Anda sudah paham...").
+   e) **SEKSI FAQ PRAKTISI (OPSIONAL & KONTEKSTUAL)**:
+      - Include ONLY if the topic has clear search intent Q&As. If included, MUST strictly obey ultra-short paragraph rules (break into 2-3 short paragraphs or lists, max ~60 words per paragraph).
+   f) **RINGKASAN & PENUTUP (WAJIB ADA & DI POSISI PALING AKHIR)**:
+      - This closing section MUST appear at the very end of the article!
+      - Start with reader validation ("Sekarang anda sudah paham...").
       - Summarize key takeaways in 1-2 short sentences.
-      - Provide a concrete Call to Action titled "Langkah Konkret yang Harus Anda Ambil Hari Ini" or "Checklist Eksekusi Anda".
+      - Provide a concrete Call to Action titled "Langkah Konkret yang Harus Anda Ambil Hari Ini", "Checklist Eksekusi Anda", or "Tugas Anda Sekarang".
       - NO "Kesimpulan" or "Conclusion" title!
 
 3. MIKRO-GAYA & ANTI-AI RHYTHM:
@@ -885,21 +891,23 @@ ${humanizerRules}
    - Non-rigid EYD: Do not be rigidly academic with formal grammar rules (EYD). Prioritize natural flow and "enak dibaca".
    - Standalone punchy paragraphs: Use 1-word or 1-phrase paragraphs for dramatic emphasis ("Gagal.", "Simpel kan?", "5x lipat!", "Ternyata tidak.").
    - Dramatic ellipsis "…": Connect thoughts across paragraphs ("Tapi…", "Ternyata…", "Nah…", "Masih ada lagi…", "Begini maksudnya…").
-   - Rhetorical questions: MANDATORY to include at least 2-3 rhetorical questions inside the MAIN BODY TEXT as paragraph connectors ("Kenapa bisa begitu?", "Masuk akal?", "Lalu apa solusinya?"). FAQ question titles DO NOT count towards this quota!
+   - Short labels with colons on standalone lines: "Alasannya:", "Solusinya:", "Masalahnya:", "Faktanya:", "Begini logikanya:".
+   - Rhetorical questions: MANDATORY to include rhetorical questions as paragraph connectors inside main body text.
    - Conditional sentences: "Kalau anda [situasi], maka anda [aksi/hasil]."
    - Occasional CAPITALIZATION for emphasis ("Bukan begitu, yang benar adalah SEBALIKNYA.").
    - Use <strong>teks tebal</strong> for key terms & emotional emphasis.
    - Use <em>kata miring</em> for foreign or technical terms at first mention.
-   - ABSOLUTELY NO em-dashes (—) or en-dashes (–).
-   - ABSOLUTELY NO robotic connectors ("Pertama-tama,", "Selain itu,", "Oleh karena itu,", "Dengan demikian,").
+   - ABSOLUTELY NO em-dashes (—) or en-dashes (–) inside paragraph sentence text. EXCEPTION: En-dash (–) IS ALLOWED in heading titles with format "Label – Deskripsi" (e.g., "Langkah 1 – temukan 20 kemampuan").
+   - ABSOLUTELY NO robotic connectors ("Pertama-tama,", "Selain itu,", "Oleh karena itu,", "Dengan demikian,"). Use natural transitions ("Nah,", "Makanya,", "Lalu,", "Artinya,").
 
-4. ADVANCED TECHNIQUES & VERIFIED TECHNICAL DATA:
+4. ADVANCED TECHNIQUES & E-E-A-T:
    - **Inverted Pyramid**: Put the most crucial insight/benefit/takeaway at the very start of a section/paragraph, not buried at the end.
-   - **Mindset Shift "Lupakan X"**: Tell readers to unlearn/doubt the flawed old way before introducing the new framework ("Lupakan [cara lama] dulu."). This opening can be labeled "0." before step "1.".
+   - **Mindset Shift "Lupakan X"**: Tell readers to unlearn/doubt the flawed old way before introducing the new framework ("Lupakan [cara lama] dulu.").
    - **Dissect Bad Examples**: Analyze concrete bad/flawed examples point-by-point to show why they fail.
-   - **Grounded Everyday Analogies**: Use familiar Indonesian everyday analogies (food like nasi goreng, daily habits) rather than technical jargon.
-   - **Meta-Commentary & Empathetic Questions**: "Coba bayangkan, apa yang anda rasakan kalau [skenario]?", "Gara-gara [sebab], banyak orang jadi [akibat]."
-   - **VERIFIED TECHNICAL DATA ONLY**: Absolute prohibition against fabricating unverified technical numbers, precise percentages (e.g. moisture 10%-14%), exact dimensions, exact durations, or exact material ages without verification. Use qualitative ranges if uncertain!
+   - **Grounded Everyday Analogies**: Use familiar everyday analogies rather than technical jargon.
+   - **Meta-Commentary & Empathetic Questions**: "Coba bayangkan, apa yang anda rasakan kalau [skenario]?"
+   - **NO FABRICATED DATA**: Absolute prohibition against fabricating unverified technical numbers, precise percentages, exact dimensions, or exact material ages without verification.
+   - **ARTICLE LENGTH FOLLOWS TOPIC COMPLETENESS**: Write thoroughly to cover all essential aspects of the topic. Do NOT pad with filler words just to chase word counts (fully compliant with Google's Helpful Content System).
 
 [FORMATTING & OUTPUT DIRECTIVE]:
 - You MUST output a valid JSON object matching this exact structure:
@@ -914,13 +922,13 @@ ${humanizerRules}
   "articleHtml": "Konten lengkap artikel dalam format HTML semantic murni"
 }
 - Do NOT output markdown fences like \`\`\`json or \`\`\`. Output raw JSON directly.
-- The "articleHtml" field MUST contain pure HTML starting with an <h2> or <h1> title, using semantic tags: <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>, <blockquote>, <a href="...">, <img src="..." />.
+- The "articleHtml" field MUST contain pure HTML starting with an <h2> or <h1> title, using semantic tags: <h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <em>, <blockquote>, <a href="...">, <img src="..." />.
 - DO NOT use Markdown formatting syntax (such as **text**, *text*, _text_) inside "articleHtml"! ALWAYS use <strong>teks tebal</strong> for bold and <em>teks miring</em> for italics.
 - STRICT HTML LIST SEMANTICS (MDN HTML STANDARD): NEVER write manual numeric or bullet prefixes (such as "1.", "2.", "3.", "1)", "•", "-") inside <li> tags! HTML <ul> and <ol> tags automatically render bullet points and numbers. Writing "<li>1. Text</li>" or "<li><strong>1. Text</strong></li>" produces broken duplicate markers ("• 1. Text") in browsers and strictly violates MDN HTML Element standards.
 - DO NOT add unnatural spaces before punctuation (e.g. write "Kopi, Memahami" NOT "Kopi , Memahami").`;
 
   const userPrompt = `
-Generate a complete, deeply researched, masterclass-level article ("Tuntas & Padat" PanduanIM style) and SEO metadata based on these specifications:
+Generate a complete, deeply researched, masterclass-level article ("Tuntas & Padat" PanduanIM v4.0.0 style) and SEO metadata based on these specifications:
 
 - **Target Keyword**: ${keyword.trim()}
 - **Writing Style**: ${style || "SEO"}
@@ -928,7 +936,7 @@ Generate a complete, deeply researched, masterclass-level article ("Tuntas & Pad
 ${imageInstructions}
 ${internalLinkInstructions}
 
-CRITICAL REQUIREMENT: Ensure the article in "articleHtml" is comprehensive, highly detailed, and exhaustive (1500+ words). Focus on 4-5 core strategic sections with organic non-numbered H2 headings. Follow standard capitalization rules for "anda"/"Anda" (capitalize "Anda" at the start of sentences or headings, use lowercase "anda" in the middle of sentences). Include at least 1 blockquote definition, 1 mini-story (e.g. "Budi" or "Rina"), grounded everyday Indonesian analogies, bullet lists (<ul><li>) for all breakdowns, ultra-short paragraphs (1-2 sentences / max 3-4 lines), dramatic ellipsis "…", Piramida Terbalik / Mindset Shift ("Lupakan X"), a practitioner FAQ section, and a MANDATORY explicit Action Plan + summary closing section AFTER the FAQ section (never end on a FAQ answer, no "Kesimpulan" title). Never invent unverified technical claims or fake statistics! Make it 100% compliant with Google's Helpful Content System (E-E-A-T) and PanduanIM writing standards!
+CRITICAL REQUIREMENT: Ensure the article in "articleHtml" is thoroughly written setuntas yang topik butuhkan without word count padding (following Google Helpful Content guidelines). If the title has a number, ensure H2 section numbering matches the title count exactly. Follow standard capitalization rules for "anda"/"Anda" (capitalize "Anda" at the start of sentences or headings, use lowercase "anda" in the middle of sentences). Include at least 1 blockquote, 1 practical illustration (personal experience, hypothetical scenario, or dissecting a bad example), grounded everyday analogies, ultra-short paragraphs (1-2 sentences / max 3-4 lines), dramatic ellipsis "…", Piramida Terbalik / Mindset Shift ("Lupakan X"), and a MANDATORY explicit Action Plan / summary closing section at the very end (no "Kesimpulan" title). Never invent unverified technical claims or fake statistics! Make it 100% compliant with Google's Helpful Content System (E-E-A-T) and PanduanIM writing standards v4.0.0!
 `;
 
   const maxRetries = Math.min(allKeyTrackers.length * 2, 6);
