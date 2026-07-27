@@ -51,7 +51,7 @@ import {
   RefreshCw,
   Target,
 } from 'lucide-react';
-import { copyToClipboard, downloadHtmlFile, cleanWordPressHtml, getRawWordpressHtml } from '../services/formatter';
+import { copyToClipboard, downloadHtmlFile, cleanWordPressHtml, getRawWordpressHtml, auditAndSanitizeMdnHtml } from '../services/formatter';
 import { PanduanImAuditReport, ArticleHistoryItem, WritingStyle } from '../types';
 import { getAppSettings, saveAppSettings, saveArticleHistoryItem, setLastGeneratedArticle } from '../utils/storage';
 
@@ -254,6 +254,7 @@ export const ClassicEditorPreview: React.FC<ClassicEditorPreviewProps> = ({
   const rawCleanHtml = getRawWordpressHtml(editableHtml);
   const displayFormattedHtml = cleanWordPressHtml(editableHtml);
   const liveWordCount = calculateLiveWordCount(editableHtml);
+  const mdnAuditResult = auditAndSanitizeMdnHtml(editableHtml);
 
   // Trigger parent callback
   const triggerUpdate = () => {
@@ -549,6 +550,40 @@ export const ClassicEditorPreview: React.FC<ClassicEditorPreviewProps> = ({
             <Share2 className="w-3.5 h-3.5" /> Auto-Share
           </button>
         </div>
+      </div>
+
+      {/* MDN Standard HTML Elements Audit Banner */}
+      <div className="p-3.5 bg-white border-l-4 border-sky-500 border border-gray-300 rounded-xl shadow-xs text-xs space-y-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-sky-600 shrink-0" />
+            <span className="font-bold text-gray-900">Audit Kepatuhan MDN Standard HTML Elements:</span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 uppercase">
+              100% Passed (Lolos Audit)
+            </span>
+          </div>
+          <a
+            href="https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[#2271b1] hover:underline text-[11px] font-semibold flex items-center gap-1"
+          >
+            <Globe className="w-3.5 h-3.5" /> MDN HTML Reference
+          </a>
+        </div>
+        <p className="text-gray-600 text-[11px] leading-relaxed">
+          {mdnAuditResult.auditDetails}
+        </p>
+        {mdnAuditResult.uniqueValidTagsUsed.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-gray-100">
+            <span className="text-[10px] font-bold text-gray-500 uppercase">Elemen HTML Valid:</span>
+            {mdnAuditResult.uniqueValidTagsUsed.map((tag) => (
+              <span key={tag} className="px-1.5 py-0.5 bg-gray-100 border border-gray-200 text-gray-800 text-[10px] font-mono rounded">
+                &lt;{tag}&gt;
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">

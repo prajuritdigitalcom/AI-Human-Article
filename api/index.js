@@ -1,7 +1,10 @@
-import serverApp from "../dist/server.cjs";
+import { createRequire } from "module";
 
-const app = serverApp.app || serverApp.default || serverApp;
+const require = createRequire(import.meta.url);
+const serverModule = require("../dist/server.cjs");
+const app = serverModule.app || serverModule.default || serverModule;
 
 export default function handler(req, res) {
   return app(req, res);
 }
+
