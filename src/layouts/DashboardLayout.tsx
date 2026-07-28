@@ -90,7 +90,7 @@ export const DashboardLayout: React.FC = () => {
           <div>
             <h1 className="font-bold text-base leading-tight text-gray-900">AI Human Article</h1>
             <span className="text-[11px] font-medium text-[#fe4c6f] tracking-wide uppercase">
-              Engine v2.9.1
+              Engine v5.1.0
             </span>
           </div>
         </div>

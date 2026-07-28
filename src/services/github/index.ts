@@ -35,9 +35,9 @@ export async function checkGithubHumanizerUpdate(): Promise<GithubCheckResult> {
   } catch (err: any) {
     return {
       hasUpdate: false,
-      currentVersion: '4.0.0',
-      currentSha: 'v4.0.0-revised',
-      latestSha: 'v4.0.0-revised',
+      currentVersion: '5.1.0',
+      currentSha: 'v5.1.0-patch',
+      latestSha: 'v5.1.0-patch',
       lastChecked: new Date().toISOString(),
       repo: 'blader/humanizer',
       error: err?.message,

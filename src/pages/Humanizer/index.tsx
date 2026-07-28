@@ -19,10 +19,10 @@ import { HumanizerRule } from '../../types';
 
 export const HumanizerPage: React.FC = () => {
   const [versionInfo, setVersionInfo] = useState({
-    version: '2.9.1',
-    commitSha: '523374d',
+    version: '5.1.0',
+    commitSha: 'v5.1.0-patch',
     lastChecked: new Date().toISOString(),
-    latestSha: '523374d',
+    latestSha: 'v5.1.0-patch',
     hasUpdate: false,
   });
 

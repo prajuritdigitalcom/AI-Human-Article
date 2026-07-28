@@ -854,16 +854,16 @@ app.post("/api/update-humanizer", async (req, res) => {
       newContent = await rawRes.text();
     }
 
-    let parsedVersion = "2.9.1";
+    let parsedVersion = "5.1.0";
     if (newContent) {
-      // Try to match version in table or metadata e.g. "version | 2.9.1" or "version: 2.9.1"
+      // Try to match version in table or metadata e.g. "version | 5.1.0" or "version: 5.1.0"
       const vMatch = newContent.match(/version\s*[:|]\s*["']?v?([0-9]+\.[0-9]+\.[0-9]+)/i) || newContent.match(/v([0-9]+\.[0-9]+\.[0-9]+)/i);
       if (vMatch && vMatch[1]) {
         parsedVersion = vMatch[1];
       }
     }
 
-    let newSha = "523374d";
+    let newSha = "v5.1.0-patch";
     try {
       const commitRes = await fetch("https://api.github.com/repos/blader/humanizer/commits/main", {
         headers: {
@@ -936,7 +936,7 @@ app.post("/api/wordpress/test", async (req, res) => {
   const cleanUrl = wpSiteUrl.trim().replace(/\/+$/, '');
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'User-Agent': 'AI-Human-Article-Generator/2.9.1 (Vercel Backend)',
+    'User-Agent': 'AI-Human-Article-Generator/5.1.0 (Vercel Backend)',
   };
 
   const hasCredentials = wpUsername && wpUsername.trim() && wpAppPassword && wpAppPassword.trim();
@@ -1084,7 +1084,7 @@ app.post("/api/wordpress/publish", async (req, res) => {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'Authorization': `Basic ${authString}`,
-    'User-Agent': 'AI-Human-Article-Generator/2.9.1 (Vercel Backend)',
+    'User-Agent': 'AI-Human-Article-Generator/5.1.0 (Vercel Backend)',
   };
 
   try {

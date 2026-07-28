@@ -117,7 +117,7 @@ export const DashboardPage: React.FC = () => {
         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-xs flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Engine Rules</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">blader v2.9.1</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">blader v5.1.0</p>
             <span className="text-[11px] text-indigo-600 font-medium mt-0.5 block flex items-center gap-1">
               <ShieldCheck className="w-3 h-3" /> Auto Update Check
             </span>
