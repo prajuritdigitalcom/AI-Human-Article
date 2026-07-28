@@ -948,10 +948,25 @@ app.post("/api/wordpress/test", async (req, res) => {
 
         let detailAdvice = `Gagal otentikasi (Status ${userRes.status}: ${userData?.message || 'Unauthorized'}). `;
         if (userRes.status === 401) {
-          detailAdvice += `\n\n📌 PENYEBAB UTAMA & CARA PERBAIKAN:\n` +
-            `1. PERIKSA USERNAME (SANGAT PENTING): Diisi "${wpUsername.trim()}". Pastikan ini adalah USERNAME LOGIN WP ADMIN (misal: modernsolidwood), BUKAN Nama Tampilan / Display Name ("Admin Sauna Kayu"). WordPress REST API hanya menerima Username Login atau Email!\n` +
-            `2. PERIKSA TYPO DI .htaccess: Di file .htaccess server Anda, hapus karakter '$' di awal baris pertama. Harusnya 'SetEnvIf' (tanpa tanda '$' di depan).\n` +
-            `3. PERIKSA APPLICATION PASSWORD: Pastikan Application Password dibuat di WP Admin -> Users -> Profile -> Application Passwords dan tidak ada spasi yang terlewat.`;
+          if (userData?.code === 'rest_not_logged_in') {
+            detailAdvice += `\n\n📌 DIAGNOSA PENYEBAB & SOLUSI KUNCI:\n` +
+              `1. ERROR 'rest_not_logged_in' BERARTI: Web server LiteSpeed / Apache di saunakayu.com MENGHAPUS header Authorization Basic sebelum sampai ke PHP.\n` +
+              `2. PERBAIKI TYPO DI .htaccess (PENTING!): Pada screenshot .htaccess Anda, baris 1 tertulis '$SetEnvIf' (ada tanda '$' di depan). HAPUS tanda '$' tersebut!\n` +
+              `3. GUNAKAN FORMULA REWRITE LITESPEED DI PALING ATAS .htaccess:\n` +
+              `   <IfModule mod_rewrite.c>\n` +
+              `   RewriteEngine On\n` +
+              `   RewriteCond %{HTTP:Authorization} ^(.*)\n` +
+              `   RewriteRule ^(.*)$ - [E=HTTP_AUTHORIZATION:%1]\n` +
+              `   </IfModule>\n` +
+              `   CGIPassAuth On\n` +
+              `4. USERNAME: Gunakan Username Login ('modernsolid') atau Email WP Admin ('modernsolidwoodcom@gmail.com').\n` +
+              `5. PLUGIN KEAMANAN: Matikan sementara plugin 'Loginizer Security' / 'XML-RPC Security' di WP Admin jika masih terblokir.`;
+          } else {
+            detailAdvice += `\n\n📌 PENYEBAB UTAMA & CARA PERBAIKAN:\n` +
+              `1. PERIKSA USERNAME / EMAIL: Diisi "${wpUsername.trim()}". Pastikan ini adalah Username Login WP Admin ('modernsolid') atau Email WP Admin ('modernsolidwoodcom@gmail.com').\n` +
+              `2. PERIKSA TYPO DI .htaccess: Hapus tanda '$' di awal baris pertama .htaccess Anda.\n` +
+              `3. PERIKSA APPLICATION PASSWORD: Buat Application Password baru di WP Admin -> Users -> Profile -> Application Passwords.`;
+          }
         } else if (userRes.status === 403) {
           detailAdvice += `User "${wpUsername}" tidak memiliki izin REST API / posting. Pastikan role user adalah Administrator atau Editor di WP Admin.`;
         }

@@ -12,7 +12,6 @@ import {
   ShieldCheck,
   Zap,
   RotateCw,
-  Sliders,
   Check,
   Globe,
   Lock,
@@ -159,11 +158,6 @@ export const SettingsPage: React.FC = () => {
 
   const toggleShowRawKey = (id: string) => {
     setShowRawKeys((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  const handleSettingToggle = (key: keyof AppSettings) => {
-    const updated = saveAppSettings({ [key]: !settings[key] });
-    setSettings(updated);
   };
 
   const handleSaveWpSettings = (e: React.FormEvent) => {
@@ -666,62 +660,6 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
         </form>
-      </div>
-
-      {/* Preferences & System Settings */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-xs p-6 md:p-8 space-y-6">
-        <div className="pb-4 border-b border-gray-100">
-          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-            <Sliders className="w-5 h-5 text-[#fe4c6f]" /> Preferensi & Konfigurasi Rotasi
-          </h2>
-          <p className="text-xs text-gray-500 mt-1">
-            Atur bagaimana API Key digilir dan diperiksa secara berkala.
-          </p>
-        </div>
-
-        <div className="space-y-4 text-xs">
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
-            <div>
-              <p className="font-bold text-gray-900 text-sm">Rotasi Otomatis (Round Robin)</p>
-              <p className="text-gray-500 mt-0.5">
-                Menggilir pemakaian API Key secara berurutan untuk membagikan kuota secara merata.
-              </p>
-            </div>
-            <button
-              onClick={() => handleSettingToggle('roundRobinEnabled')}
-              className={`w-12 h-6 rounded-full transition-colors relative ${
-                settings.roundRobinEnabled ? 'bg-[#fe4c6f]' : 'bg-gray-300'
-              }`}
-            >
-              <span
-                className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform ${
-                  settings.roundRobinEnabled ? 'left-6.5' : 'left-0.5'
-                }`}
-              />
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
-            <div>
-              <p className="font-bold text-gray-900 text-sm">Otomatis Cek Update Humanizer</p>
-              <p className="text-gray-500 mt-0.5">
-                Memeriksa pembaruan aturan di GitHub blader/humanizer saat membuka aplikasi.
-              </p>
-            </div>
-            <button
-              onClick={() => handleSettingToggle('autoCheckUpdate')}
-              className={`w-12 h-6 rounded-full transition-colors relative ${
-                settings.autoCheckUpdate ? 'bg-[#fe4c6f]' : 'bg-gray-300'
-              }`}
-            >
-              <span
-                className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform ${
-                  settings.autoCheckUpdate ? 'left-6.5' : 'left-0.5'
-                }`}
-              />
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );
