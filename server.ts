@@ -548,6 +548,23 @@ function auditPanduanIMStyle(html: string, wordCount: number, title: string, key
       : 'Terdeteksi jawaban FAQ berupa blok teks padat (> 60 kata dalam 1 paragraf).'
   });
 
+  // 15. Check Hook Opening Specificity to Topic (v5.0.0 Anti-Generic Hook)
+  const firstParagraphMatch = html.match(/<p>([\s\S]*?)<\/p>/i);
+  const firstParagraphText = firstParagraphMatch
+    ? firstParagraphMatch[1].replace(/<[^>]+>/g, '').toLowerCase()
+    : '';
+  const keywordTokens = keyword.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+  const hookMentionsKeyword = keywordTokens.length > 0 && keywordTokens.some(t => firstParagraphText.includes(t));
+  checks.push({
+    id: 'hook_specificity',
+    label: 'Hook Pembuka Spesifik ke Topik (Bukan Template Generik v5.0.0)',
+    category: 'Anti-AI Burstiness',
+    passed: hookMentionsKeyword,
+    detail: hookMentionsKeyword
+      ? 'Paragraf pembuka mengandung istilah spesifik dari focus keyword, indikasi hook lahir dari argumen spesifik topik.'
+      : 'Paragraf pembuka tidak menyebut istilah spesifik dari focus keyword — pastikan hook lahir dari argumen spesifik dan tidak terasa generik.'
+  });
+
   const passedCount = checks.filter(c => c.passed).length;
   const score = Math.round((passedCount / checks.length) * 100);
 
@@ -1194,7 +1211,11 @@ ${validLinks.map(l => `- Anchor Text: "${l.anchorText.trim()}" -> URL: ${l.url.t
 [HUMANIZER RULES & STYLE GUIDE]:
 ${humanizerRules}
 
-[PANDUANIM (DARMAWAN STYLE) - COMPLETE ENGINE BLUEPRINT v4.0.0]:
+[PANDUANIM (DARMAWAN STYLE) - COMPLETE ENGINE BLUEPRINT v5.0.0]:
+
+0. CORE ARGUMENT PRINCIPLE (THESIS-FIRST GENERATION):
+   - Every article MUST originate from 1 sharp, topic-specific thesis or core insight ("What is the single most misunderstood, surprising, or crucial fact about THIS topic right now?").
+   - SPECIFICITY TEST: If the opening 1-3 sentences could still make sense after replacing the keyword with a completely different topic, IT IS TOO GENERIC — rewrite it to contain an observation/claim that is ONLY true for this specific topic.
 
 1. PERSONA & PRONOUNS:
    - Write as an experienced, direct, blak-blakan practitioner/mentor—NOT a neutral encyclopedia or textbook.
@@ -1202,27 +1223,30 @@ ${humanizerRules}
    - Reader Address: Address the reader as "anda". Follow standard capitalization rules: write "Anda" with CAPITAL A if it is the FIRST word in a sentence or heading, but use lowercase "anda" when it is in the MIDDLE of a sentence (e.g., "...pada kayu FJL. Anda bisa..." vs "...cara agar bisnis anda..."). NEVER use "kamu", "lo/gue", or informal slang.
    - Tone: Confident, bold, slightly provocative at the start, yet warm and step-by-step guiding. Interjections like "nggak", "emangnya", "gila kan?", "ya kan?" are natural when used sparingly.
 
-2. MANDATORY MACRO-STRUCTURE:
-   a) **HOOK PEMBUKA** (1 short paragraph, 1-3 sentences):
-      - MUST choose naturally from 1 of 5 hook variants (Do NOT default to #1):
-        1. Klaim berani ("Saya akan katakan secara terang-terangan: [X].")
-        2. Mitos vs fakta ("Kata orang, [X] itu [mitos].")
-        3. Pertanyaan retoris ("[Pertanyaan besar yang jadi keresahan pembaca]?")
-        4. Angka mengejutkan ("[Statistik] — tapi [twist].") [ONLY if valid data available]
-        5. Kontras dulu/sekarang ("Dulu [kondisi lama]. Sekarang [kondisi baru].")
-      - NEVER start with dictionary definitions or AI clichés ("Di era digital...", "Saat ini...", "Lebih dari sekadar...").
-   b) **AGITASI MASALAH** (2-4 short idea groups, <= 10-12 short paragraphs total before H2 #1):
-      - Highlight the gap between expectations vs reality.
-      - End with a standalone 1-word or 1-phrase paragraph for dramatic pause ("Gagal.", "Sia-sia.", "Ternyata tidak.", "Nol besar.").
+2. ARTICLE INTENT CLASSIFICATION & MACRO-STRUCTURE:
+   First classify the intent of the article into one of two types:
+   A) PERSUASIVE / HOW-TO / MINDSET-SHIFT (e.g. "Cara X", "N Kesalahan X", "N Tahap X"):
+      - Use full structure: Sharp argument hook + deep agitation + solution preview + main body + action plan closing.
+   B) INFORMATIONAL / DEFINITIONAL / FOUNDATION (e.g. "Apa itu X", "Pengertian X"):
+      - Use streamlined structure: Situational context opening (1-3 sentences) + direct conceptual explanation + organic H2s WITHOUT forced dramatic pauses or artificial agitation.
+
+3. STRUCTURE DETAILS:
+   a) **HOOK PEMBUKA** (1 short paragraph, 1-4 sentences):
+      - DO NOT select from a fixed template list. First internally determine the single sharpest, most specific claim or insight about THIS exact topic/keyword. Write the opening as a natural expression of that claim.
+      - Inspirational patterns (NOT a menu): bold claim from experience, trend-to-problem observation, situational scenario direct to reader, assumption reversal, forced-priority framing, surprising verified statistic, before/after contrast.
+      - NEVER start with dictionary definitions or AI clichés ("Di era digital saat ini...", "Lebih dari sekadar...").
+   b) **AGITASI MASALAH**:
+      - For Persuasive/How-To (Type A): Highlight specific expectation vs reality gap with optional standalone 1-word/1-phrase dramatic pause ("Gagal.", "Sia-sia.", "Ternyata tidak.").
+      - For Informational/Definisional (Type B): Keep opening situational and smooth, moving quickly into the concept explanation without forced dramatic pauses.
    c) **JANJI / PREVIEW SOLUSI** (1-2 paragraphs):
       - Introduce the solution framework clearly. If part of a series, show roadmap with 1-2 sentence summaries per chapter.
    d) **ISI UTAMA** (4-6 core strategic H2 sections):
       - H2 HEADINGS NUMBERING MUST MATCH TITLE PROMISE:
         * If title promises a number (e.g., "7 Cara...", "5 Kesalahan...", "9 Tahap..."), H2s MUST be numbered ("1.", "#1", or "Langkah 1 – ...") and the count MUST match the title number exactly!
-        * If title is conceptual/narrative ("Apa itu X", "Mengapa X Penting"), H2s are organic WITHOUT numbers (e.g. "<h2>Mengapa [X] Penting untuk [Y]?</h2>").
-      - Concept Explanations: Always use the "mitos-dulu-baru-fakta" pattern (explain common misconception first, then the true reality).
-      - BLOCKQUOTE (3 Allowed Functions): Use blockquote &lt;blockquote&gt; for (1) formal definition of key concepts, (2) quoting old rules/myths to debunk, or (3) illustrative example sentences.
-      - CONTOH / ILUSTRASI: Include at least 1 illustration per article. Choose from 3 options: (a) personal experience of author ("saya pernah..."), (b) hypothetical scenario to reader ("anggaplah anda..."), or (c) dissecting real/flawed examples point-by-point. Do NOT force fictional character names like Budi/Rina.
+        * If title is conceptual/narrative ("Apa it X", "Mengapa X Penting"), H2s are organic WITHOUT numbers (e.g. "<h2>Mengapa [X] Penting untuk [Y]?</h2>").
+      - Concept Explanations: Always use the "mitos-dulu-baru-fakta" pattern when relevant misconceptions exist.
+      - BLOCKQUOTE (3 Allowed Functions): Use blockquote <blockquote> for (1) formal definition of key concepts, (2) quoting old rules/myths to debunk, or (3) illustrative example sentences.
+      - CONTOH / ILUSTRASI: Include at least 1 illustration per article. Choose from 3 options: (a) personal experience of author ("saya pernah..."), (b) hypothetical scenario to reader ("anggaplah anda..."), or (c) dissecting real/flawed examples point-by-point (explain explicitly why each point failed). Do NOT force fictional character names like Budi/Rina.
       - LIST TYPES: Use numbered lists (<ol><li>) for sequential steps, execution checklists, decision stages, and process workflows where sequence matters. Use bullet lists (<ul><li>) ONLY for non-sequential options or categories.
       - RHETORICAL QUESTIONS: Include at least 1 rhetorical question per H2 section as paragraph connectors.
       - Section Summary: Close each H2 section with 1 short wrap-up sentence before moving to the next section.
@@ -1235,7 +1259,7 @@ ${humanizerRules}
       - Provide a concrete Call to Action titled "Langkah Konkret yang Harus Anda Ambil Hari Ini", "Checklist Eksekusi Anda", or "Tugas Anda Sekarang".
       - NO "Kesimpulan" or "Conclusion" title!
 
-3. MIKRO-GAYA & ANTI-AI RHYTHM:
+4. MIKRO-GAYA & ANTI-AI RHYTHM:
    - Paragraph length: ULTRA-SHORT (1-2 sentences per paragraph, max 3-4 lines / ~20 words per line). NO dense text blocks!
    - Non-rigid EYD: Do not be rigidly academic with formal grammar rules (EYD). Prioritize natural flow and "enak dibaca".
    - Standalone punchy paragraphs: Use 1-word or 1-phrase paragraphs for dramatic emphasis ("Gagal.", "Simpel kan?", "5x lipat!", "Ternyata tidak.").
@@ -1249,7 +1273,7 @@ ${humanizerRules}
    - ABSOLUTELY NO em-dashes (—) or en-dashes (–) inside paragraph sentence text. EXCEPTION: En-dash (–) IS ALLOWED in heading titles with format "Label – Deskripsi" (e.g., "Langkah 1 – temukan 20 kemampuan").
    - ABSOLUTELY NO robotic connectors ("Pertama-tama,", "Selain itu,", "Oleh karena itu,", "Dengan demikian,"). Use natural transitions ("Nah,", "Makanya,", "Lalu,", "Artinya,").
 
-4. ADVANCED TECHNIQUES & E-E-A-T:
+5. ADVANCED TECHNIQUES & E-E-A-T:
    - **Inverted Pyramid**: Put the most crucial insight/benefit/takeaway at the very start of a section/paragraph, not buried at the end.
    - **Mindset Shift "Lupakan X"**: Tell readers to unlearn/doubt the flawed old way before introducing the new framework ("Lupakan [cara lama] dulu.").
    - **Dissect Bad Examples**: Analyze concrete bad/flawed examples point-by-point to show why they fail.
@@ -1277,7 +1301,7 @@ ${humanizerRules}
 - DO NOT add unnatural spaces before punctuation (e.g. write "Kopi, Memahami" NOT "Kopi , Memahami").`;
 
   const userPrompt = `
-Generate a complete, deeply researched, masterclass-level article ("Tuntas & Padat" PanduanIM v4.0.0 style) and SEO metadata based on these specifications:
+Generate a complete, deeply researched, masterclass-level article ("Tuntas & Padat" PanduanIM v5.0.0 style) and SEO metadata based on these specifications:
 
 - **Target Keyword**: ${keyword.trim()}
 - **Writing Style**: ${style || "SEO"}
@@ -1285,7 +1309,10 @@ Generate a complete, deeply researched, masterclass-level article ("Tuntas & Pad
 ${imageInstructions}
 ${internalLinkInstructions}
 
-CRITICAL REQUIREMENT: Ensure the article in "articleHtml" is thoroughly written setuntas yang topik butuhkan without word count padding (following Google Helpful Content guidelines). If the title has a number, ensure H2 section numbering matches the title count exactly. Follow standard capitalization rules for "anda"/"Anda" (capitalize "Anda" at the start of sentences or headings, use lowercase "anda" in the middle of sentences). Include at least 1 blockquote, 1 practical illustration (personal experience, hypothetical scenario, or dissecting a bad example), grounded everyday analogies, ultra-short paragraphs (1-2 sentences / max 3-4 lines), dramatic ellipsis "…", Piramida Terbalik / Mindset Shift ("Lupakan X"), and a MANDATORY explicit Action Plan / summary closing section at the very end (no "Kesimpulan" title). Never invent unverified technical claims or fake statistics! Make it 100% compliant with Google's Helpful Content System (E-E-A-T) and PanduanIM writing standards v4.0.0!
+CRITICAL REQUIREMENT: Ensure the article in "articleHtml" is thoroughly written setuntas yang topik butuhkan without word count padding (following Google Helpful Content guidelines). 
+First determine the single sharpest topic-specific claim/thesis for the opening hook (pass specificity test: opening MUST be specific to this topic, not a generic template!). 
+Adapt the structure based on article intent (Persuasive/How-To vs Informational/Definisional). 
+If the title has a number, ensure H2 section numbering matches the title count exactly. Follow standard capitalization rules for "anda"/"Anda" (capitalize "Anda" at the start of sentences or headings, use lowercase "anda" in the middle of sentences). Include at least 1 blockquote, 1 practical illustration (personal experience, hypothetical scenario, or dissecting a bad example point-by-point), grounded everyday analogies, ultra-short paragraphs (1-2 sentences / max 3-4 lines), dramatic ellipsis "…", Piramida Terbalik / Mindset Shift ("Lupakan X"), and an explicit Action Plan / summary closing section at the very end (no "Kesimpulan" title). Never invent unverified technical claims or fake statistics! Make it 100% compliant with Google's Helpful Content System (E-E-A-T) and PanduanIM writing standards v5.0.0!
 `;
 
   const maxRetries = Math.min(allKeyTrackers.length * 2, 6);
