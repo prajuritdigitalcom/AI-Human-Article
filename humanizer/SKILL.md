@@ -287,22 +287,24 @@ D. PENUTUP (lihat Bagian 6) — untuk tipe ini penutup boleh lebih ringan:
 =====================================================================
 6. PENUTUP
 =====================================================================
-- Untuk Tipe A (persuasif/how-to): WAJIB ada di posisi paling akhir.
-  Mulai dengan validasi pembaca ("Sekarang anda sudah paham..."),
-  ringkasan 1-2 kalimat, lalu Call to Action konkret berjudul bebas
-  (misal "Langkah Konkret yang Harus Anda Ambil Hari Ini", "Checklist
-  Eksekusi Anda") — TIDAK PERNAH berjudul "Kesimpulan"/"Conclusion".
-- Untuk Tipe B (informasional/definisional): boleh lebih ringan —
-  ringkasan pemahaman + arah topik lanjutan yang relevan untuk dipelajari,
-  tanpa memaksakan CTA checklist berat.
-- SEKSI FAQ: OPSIONAL & KONTEKSTUAL. Hanya masukkan kalau topik memang
-  punya search intent tanya-jawab yang jelas dan belum terjawab di isi
-  utama. Kalau dimasukkan, WAJIB paragraf super pendek (maks ~60 kata per
-  jawaban, dipecah 2-3 paragraf pendek kalau perlu). Jangan jadikan FAQ
-  checklist wajib di setiap artikel.
-- SERI/PILLAR (opsional): kalau user secara eksplisit minta artikel ini
-  jadi bagian dari seri berjilid, tutup dengan transisi ke bab berikutnya
-  alih-alih CTA checklist. Untuk artikel tunggal, lewati elemen ini.
+- WAJIB ADA di posisi paling akhir artikel (setelah FAQ kalau ada FAQ).
+- Mulai dengan validasi singkat ("Sekarang anda sudah paham...").
+- Rangkum inti dalam 1-2 kalimat.
+- JUDUL & ISI CTA TIDAK BOLEH DIPILIH DARI CONTOH/TEMPLATE MANAPUN,
+  TERMASUK CONTOH DI DOKUMEN INI. Turunkan dari 1 pertanyaan:
+  "Kalau pembaca baru selesai membaca artikel ini, apa SATU tindakan
+  fisik/konkret paling pertama yang masuk akal mereka lakukan hari ini
+  juga, yang HANYA relevan untuk topik spesifik ini?" Jawaban itu yang
+  jadi judul heading penutup secara natural.
+- TES KEKHASAN (wajib): kalau judul CTA ini bisa ditempel ke artikel
+  topik lain tanpa diubah kata-katanya sama sekali, berarti masih
+  generik — tulis ulang supaya spesifik ke topik ini.
+- TIDAK PERNAH berjudul "Kesimpulan"/"Conclusion" yang kaku.
+- Untuk artikel Tipe B (informasional/definisional, lihat Bagian 2):
+  penutup boleh lebih ringan — cukup ringkasan pemahaman + arah topik
+  lanjutan yang relevan, tanpa memaksakan CTA action-plan yang berat.
+- Untuk konten seri/pillar (kalau user eksplisit minta): tutup dengan
+  transisi ke bab berikutnya, bukan CTA checklist.
 
 =====================================================================
 7. MIKRO-GAYA & RITME ANTI-AI

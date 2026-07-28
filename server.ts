@@ -565,6 +565,27 @@ function auditPanduanIMStyle(html: string, wordCount: number, title: string, key
       : 'Paragraf pembuka tidak menyebut istilah spesifik dari focus keyword — pastikan hook lahir dari argumen spesifik dan tidak terasa generik.'
   });
 
+  // 16. Check Closing Title Specificity (v5.1.0 Anti-Generic Closing Title)
+  const genericClosingTitles = [
+    'langkah konkret yang harus anda ambil hari ini',
+    'checklist eksekusi anda',
+    'tugas anda sekarang',
+  ];
+  const closingHeadingMatch = html.match(/<h[23][^>]*>([\s\S]*?)<\/h[23]>(?![\s\S]*<h[23])/i);
+  const closingHeadingText = closingHeadingMatch
+    ? closingHeadingMatch[1].replace(/<[^>]+>/g, '').trim().toLowerCase()
+    : '';
+  const isGenericClosingTitle = genericClosingTitles.includes(closingHeadingText);
+  checks.push({
+    id: 'closing_title_specificity',
+    label: 'Judul Penutup/CTA Spesifik ke Topik (Bukan Template Generik v5.1.0)',
+    category: 'Anti-AI Burstiness',
+    passed: !isGenericClosingTitle,
+    detail: !isGenericClosingTitle
+      ? 'Judul heading penutup tidak memakai frasa template generik yang sama berulang kali.'
+      : `Judul penutup terdeteksi memakai frasa template generik ("${closingHeadingText}") — sebaiknya diturunkan dari tindakan spesifik topik ini.`
+  });
+
   const passedCount = checks.filter(c => c.passed).length;
   const score = Math.round((passedCount / checks.length) * 100);
 
@@ -1256,7 +1277,8 @@ ${humanizerRules}
       - This closing section MUST appear at the very end of the article!
       - Start with reader validation ("Sekarang anda sudah paham...").
       - Summarize key takeaways in 1-2 short sentences.
-      - Provide a concrete Call to Action titled "Langkah Konkret yang Harus Anda Ambil Hari Ini", "Checklist Eksekusi Anda", or "Tugas Anda Sekarang".
+      - DO NOT pick the CTA title from any fixed example list. Derive it from ONE question: "What is the single first concrete action a reader would realistically take today, that is ONLY relevant to this specific topic?" Turn that answer into the heading title.
+      - SPECIFICITY TEST: if this CTA title could be pasted onto an article about a completely different topic without changing a word, it is too generic — rewrite it to be topic-specific.
       - NO "Kesimpulan" or "Conclusion" title!
 
 4. MIKRO-GAYA & ANTI-AI RHYTHM:
