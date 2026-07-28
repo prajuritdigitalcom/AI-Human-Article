@@ -620,7 +620,7 @@ function loadHumanizerVersionInfo() {
   } catch (err) {
     console.error("Error reading version.json:", err);
   }
-  return { version: "2.9.1", lastChecked: new Date().toISOString(), commitSha: "523374d", repo: "blader/humanizer" };
+  return { version: "5.1.0", lastChecked: new Date().toISOString(), commitSha: "v5.1.0-patch", repo: "blader/humanizer" };
 }
 
 // --- API ENDPOINTS ---

@@ -1,17 +1,13 @@
 ---
 name: panduanim-writing-engine
 description: |
-  PanduanIM Writing Style Replicator Engine v5.0.0 — revisi atas engine v4.0.0
+  PanduanIM Writing Style Replicator Engine v5.1.0 — revisi atas engine v5.0.0
   yang sudah ada di aplikasi "AI Human Article Generator" (humanizer/SKILL.md +
-  server.ts). Disusun setelah membaca ULANG langsung 5 artikel penuh panduanim.com
-  (bukan asumsi), plus pedoman resmi Google "Creating helpful, reliable,
-  people-first content". Fokus utama revisi: menghilangkan mekanisme "pilih 1
-  dari daftar tertutup" yang membuat artikel terasa seragam walau topiknya beda,
-  dan mengganti dengan mekanisme generatif berbasis argumen inti tiap topik.
+  server.ts). Patch v5.1.0 memperbarui bagian penutup/CTA agar topik-spesifik.
 license: MIT
 metadata:
-  version: "5.0.0"
-  previous_version: "4.0.0 (humanizer/SKILL.md + server.ts, app AI Human Article Generator)"
+  version: "5.1.0"
+  previous_version: "5.0.0 (humanizer/SKILL.md + server.ts, app AI Human Article Generator)"
   audited_sources:
     - "http://panduanim.com/ (homepage, 3 cuplikan artikel)"
     - "http://panduanim.com/artikel-seo/ (dibaca penuh)"

@@ -42,10 +42,10 @@ export const HumanizerPage: React.FC = () => {
       const res = await checkGithubHumanizerUpdate();
       if (res) {
         setVersionInfo({
-          version: res.currentVersion || '1.2.0',
-          commitSha: res.currentSha || 'e4f8a92b3c10',
+          version: res.currentVersion || '5.1.0',
+          commitSha: res.currentSha || 'v5.1.0-patch',
           lastChecked: res.lastChecked || new Date().toISOString(),
-          latestSha: res.latestSha || res.currentSha || 'e4f8a92b3c10',
+          latestSha: res.latestSha || res.currentSha || 'v5.1.0-patch',
           hasUpdate: !!res.hasUpdate,
         });
       }

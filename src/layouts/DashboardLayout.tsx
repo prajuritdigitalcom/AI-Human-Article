@@ -19,7 +19,7 @@ import { checkGithubHumanizerUpdate } from '../services/github';
 export const DashboardLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [hasUpdate, setHasUpdate] = useState(false);
-  const [latestVersion, setLatestVersion] = useState<string>('1.2.0');
+  const [latestVersion, setLatestVersion] = useState<string>('5.1.0');
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const location = useLocation();
 
